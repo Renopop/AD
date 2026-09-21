@@ -298,3 +298,142 @@ tinderphotos.s3.amazonaws.com
 alovoa.com
 amourfeel.com
 flippedapp.net
+
+# --- Grands groupes : toutes les marques (Match Group, Bumble Inc., Spark Networks, ParshipMeet) ---
+meetic.es
+meetic.it
+meetic.be
+meetic.ch
+meetic.nl
+meetic.pt
+meetic.ca
+match.fr
+ourtime.co.uk
+ourtime.es
+ourtime.de
+chispa-app.com
+blk-app.com
+upwardapp.com
+hakuna.live
+hawaya.com
+lexa.nl
+lexa.be
+relatieplanet.nl
+silversingles.fr
+silversingles.de
+jswipe.com
+edarling.de
+edarling.es
+edarling.it
+edarling.ru
+elitepartner.ch
+elitepartner.at
+parship.nl
+parship.ch
+parship.at
+parship.be
+parship.co.uk
+parship.es
+parship.it
+parship.fr
+eharmony.ca
+eharmony.com.au
+eharmony.de
+growlr.com
+zweisam.de
+
+# --- Sites généralistes par pays ---
+# France / Belgique / Suisse / Québec
+babel.com
+rendez-vous.be
+elitedating.be
+swissfriends.ch
+reseaucontact.com
+quebecrencontres.com
+lavalife.com
+# Allemagne / Autriche
+bildkontakte.de
+single.de
+dating.de
+50plus-treff.de
+lebensfreude50.de
+kaufmich.com
+firstaffair.de
+# Pays-Bas
+pepper.nl
+e-matching.nl
+paiq.nl
+breeze.social
+secondlove.nl
+# Espagne / Italie / Portugal / Brésil
+mobifriends.com
+be2.es
+be2.it
+lovepedia.net
+bakecaincontri.com
+bakecaincontrii.com
+parperfeito.com.br
+# Royaume-Uni
+muddymatches.co.uk
+lumenapp.com
+freedating.co.uk
+datingdirect.com
+elitesingles.co.uk
+# Russie
+teamo.ru
+fotostrana.ru
+tabor.ru
+love.ru
+dating.ru
+# Inde
+shaadi.com
+bharatmatrimony.com
+jeevansathi.com
+trulymadly.com
+aisle.co
+quackquack.in
+dilmil.co
+# Monde arabe
+arablounge.com
+buzzarab.com
+# Asie
+zhenai.com
+baihe.com
+jiayuan.com
+tapple.me
+# Seniors
+seniormatch.com
+seniorpeoplemeet.com
+# Niches
+collarspace.com
+mytranssexualdate.com
+tsdates.com
+hashtagopen.com
+swingtowns.com
+illicitencounters.com
+millionairematch.com
+elitemeetsbeauty.com
+daddyhunt.com
+bicupid.com
+
+# --- Applis "rencontre d'amis" et social discovery très utilisées par les adolescents ---
+wizzapp.com
+getwizz.io
+wizz.chat
+litmatch.com
+litmatchs.com
+litmatchapp.com
+
+# --- Compagnons virtuels / "petites amies IA" (relations romantiques simulées, souvent sexualisées) ---
+replika.com
+candy.ai
+nomi.ai
+kupid.ai
+dreamgf.ai
+girlfriendgpt.com
+romanticai.com
+myanima.ai
+talk2aigirl.com
+kindroid.ai
+chai-research.com
+paradot.ai

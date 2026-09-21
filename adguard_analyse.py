@@ -461,7 +461,14 @@ class Classifier(object):
                 best = (hit, suffix)   # liste intégrée prioritaire sur liste externe, sinon suffixe le plus long
         if best:
             return best[0][0], "liste " + best[0][1], best[1]
-        labels = [l for l in host.split(".") if l not in self.excluded_labels]
+        # chaque partie du nom, plus ses morceaux séparés par des tirets (hot-matures -> hot, matures)
+        labels = []
+        for l in host.split("."):
+            if l in self.excluded_labels:
+                continue
+            labels.append(l)
+            if "-" in l:
+                labels.extend(p for p in l.split("-") if p and p not in self.excluded_labels)
         for cat in KEYWORD_ORDER:
             for kw in self.keywords.get(cat, []):
                 for label in labels:

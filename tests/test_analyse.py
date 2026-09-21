@@ -344,3 +344,15 @@ class TestRencontres(unittest.TestCase):
         self.assertEqual(rep["top_sites"][1], ("gotinder.com", 1, "rencontres"))
         self.assertIn("SITES LES PLUS VISITÉS PAR L'APPAREIL", core.render_text(rep))
         self.assertIn("Sites les plus visités par l'appareil", core.render_html(rep))
+
+
+class TestTirets(unittest.TestCase):
+    def test_mots_cles_dans_noms_a_tirets(self):
+        c = make_classifier()
+        self.assertEqual(c.classify("hot-matures.vip")[0], "porno")
+        self.assertEqual(c.classify("rencontre-mature.fr")[0], "rencontres")
+        self.assertEqual(c.classify("strip-chat.webcam")[0], "porno")
+        self.assertEqual(c.classify("les-cougars-de-lyon.fr")[0], "rencontres")
+        self.assertIsNone(c.classify("mon-site-essex.co.uk")[0])
+        self.assertEqual(c.classify("wizzapp.com")[0], "rencontres")
+        self.assertEqual(c.classify("api.replika.com")[0], "rencontres")

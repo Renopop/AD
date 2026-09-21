@@ -30,7 +30,7 @@ Le programme est prévu pour tourner sur un PC Windows et être transformé en `
    Docker, il est dans le dossier partagé monté sur `/opt/adguardhome/work` du conteneur, par exemple
    `\\NAS\docker\adguardhome\work\data\querylog.json`.
 
-### Les deux limites à connaître
+### Les limites à connaître
 
 - **iCloud Private Relay** (iPhone, avec un abonnement iCloud+) : quand il est actif, la navigation Safari
   passe par Apple et **n'apparaît pas** dans AdGuard. L'outil le détecte (requêtes vers `mask.icloud.com`)
@@ -43,6 +43,9 @@ Le programme est prévu pour tourner sur un PC Windows et être transformé en `
   L'iPhone affichera alors que Private Relay n'est pas disponible sur ce réseau Wi-Fi.
 - **Données mobiles (4G/5G)** : hors Wi-Fi, le téléphone n'utilise pas AdGuard. Seul le trafic Wi-Fi
   de la maison est visible.
+- **Rencontres à l'intérieur des grandes applis** : Facebook Dating, les messages privés Instagram, Snapchat
+  ou Discord utilisent les mêmes domaines que l'appli elle-même. Le DNS ne permet pas de les distinguer ;
+  seuls les sites et applis dédiés sont détectables.
 
 ---
 
@@ -66,8 +69,12 @@ python maj_listes.py --complet    # ajoute la liste UT1 complète "adult" (~4 mi
 Deux listes de sites de rencontres sont déjà livrées dans le dépôt et actives dès l'installation :
 **UT1 « dating »** (8 600 domaines, `listes/externes/rencontres_ut1.txt`, licence CC BY-SA 4.0, Université
 Toulouse Capitole) et **ShadowWhisperer « Dating »** (1 400 domaines, dont beaucoup de sites français,
-seniors, cougars et « casual »). S'y ajoutent les 270 sites et applis de `listes/rencontres.txt` (cougars,
-sugar mommas, libertins, internationaux, gay, escorts, applis visant les adolescents) et une trentaine de
+seniors, cougars et « casual »). S'y ajoutent les 390 sites et applis de `listes/rencontres.txt` : toutes les marques des grands
+groupes (Match Group, Bumble, Spark Networks, ParshipMeet) dans chaque pays, les sites généralistes majeurs
+de France, Belgique, Suisse, Québec, Allemagne, Pays-Bas, Espagne, Italie, Royaume-Uni, Russie, Inde, Asie
+et monde arabe, les cougars, sugar mommas, libertins, seniors, gay, escorts, les applis de « rencontre
+d'amis » des adolescents (Yubo, Wizz, Hoop, Litmatch, Spotafriend) et les « petites amies IA » (Replika,
+Candy.ai, Nomi...) et une trentaine de
 mots-clés en plusieurs langues (`rencontr`, `dating`, `cougar`, `sugarmomma`, `toyboy`, `incontri`...).
 `maj_listes.py` rafraîchit ces listes et ajoute les listes porno (~350 000 domaines).
 

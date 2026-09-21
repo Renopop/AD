@@ -1,0 +1,17 @@
+# Tchat vidéo avec des inconnus (type Omegle) : un domaine par ligne (sous-domaines inclus).
+omegle.com
+ome.tv
+chatroulette.com
+chathub.cam
+monkey.app
+monkey.cool
+emeraldchat.com
+camsurf.com
+chatrandom.com
+coomeet.com
+azarlive.com
+shagle.com
+bazoocam.org
+chatspin.com
+chatib.us
+strangercam.com

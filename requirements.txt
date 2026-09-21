@@ -1,0 +1,3 @@
+# Aucune dépendance pour utiliser l'outil : Python 3.8+ suffit (Tkinter inclus dans l'installateur Windows).
+# Uniquement pour fabriquer le .exe :
+pyinstaller>=6.0

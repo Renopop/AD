@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+rapports/
+listes/externes/
+adguard_analyse.config.json
+exemples/querylog.json
+*.csv
+*.html

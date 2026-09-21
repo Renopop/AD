@@ -1,0 +1,56 @@
+# Mots-clés recherchés dans chaque partie du nom de domaine (ex : "porn" détecte pornhub.com, freeporn.xxx...).
+# Syntaxe :   mot      -> contenu n'importe où dans une partie du domaine
+#            ^mot      -> la partie du domaine commence par ce mot (ex ^sex : sexe, sexy, sextape)
+#            mot$      -> la partie du domaine se termine par ce mot
+#            =mot      -> la partie du domaine est exactement ce mot
+# Les faux positifs connus sont neutralisés dans exclusions.txt (ex : essex, unisex).
+porn
+porno
+xxx
+hentai
+xvideos
+xnxx
+xhamster
+redtube
+youporn
+chaturbate
+onlyfans
+brazzers
+camsoda
+stripchat
+livejasmin
+bongacams
+milf
+fetish
+bdsm
+blowjob
+gangbang
+hardcore
+cumshot
+shemale
+rule34
+nsfw
+erotic
+erotique
+escort
+camgirl
+camgirls
+^sex
+sex$
+^nude
+^nudes
+^naked
+=adult
+=adulte
+=adults
+=jav
+=javhd
+=fap
+=boobs
+=tits
+=pussy
+=doujin
+=ecchi
+=ahegao
+=futa
+=yiff

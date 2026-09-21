@@ -316,3 +316,31 @@ class TestCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRencontres(unittest.TestCase):
+    def test_priorite_rencontres_sur_porno(self):
+        c = make_classifier()
+        self.assertEqual(c.classify("sexe-rencontre.com")[0], "rencontres")
+        self.assertEqual(c.classify("sexy-cougars.net")[0], "rencontres")
+        self.assertEqual(c.classify("www.xvideos.com")[0], "porno")
+
+    def test_listes_externes_livrees(self):
+        c = make_classifier()
+        self.assertEqual(c.classify("affiny.fr")[0], "rencontres")            # UT1
+        self.assertEqual(c.classify("www.c-dating.fr")[0], "rencontres")      # ShadowWhisperer
+        self.assertEqual(c.classify("www.cougarlife.com")[0], "rencontres")
+        self.assertIsNone(c.classify("www.meetup.com")[0])
+
+    def test_top_sites(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 9, 1, 12, 0, tzinfo=PARIS)
+        es = [entry(base, "www.google.com", "10.0.0.5"), entry(base, "api.gotinder.com", "10.0.0.5"),
+              entry(base, "www.google.com", "10.0.0.5")]
+        a = core.Analysis(core.Filters(clients=["10.0.0.5"]), c, keep_all_hosts=True)
+        a.feed(es)
+        rep = core.build_report(a, top_sites=10)
+        self.assertEqual(rep["top_sites"][0], ("google.com", 2, None))
+        self.assertEqual(rep["top_sites"][1], ("gotinder.com", 1, "rencontres"))
+        self.assertIn("SITES LES PLUS VISITÉS PAR L'APPAREIL", core.render_text(rep))
+        self.assertIn("Sites les plus visités par l'appareil", core.render_html(rep))

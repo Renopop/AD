@@ -63,13 +63,17 @@ python maj_listes.py --complet    # ajoute la liste UT1 complète "adult" (~4 mi
                                   # analyse plus lente ; utile seulement si un site échappe aux listes standard)
 ```
 
-La liste UT1 « dating » est déjà livrée dans le dépôt (`listes/externes/rencontres_ut1.txt`, licence
-CC BY-SA 4.0, Université Toulouse Capitole) : la détection des sites de rencontres est donc complète dès
-l'installation ; `maj_listes.py` la rafraîchit et ajoute les listes porno.
+Deux listes de sites de rencontres sont déjà livrées dans le dépôt et actives dès l'installation :
+**UT1 « dating »** (8 600 domaines, `listes/externes/rencontres_ut1.txt`, licence CC BY-SA 4.0, Université
+Toulouse Capitole) et **ShadowWhisperer « Dating »** (1 400 domaines, dont beaucoup de sites français,
+seniors, cougars et « casual »). S'y ajoutent les 270 sites et applis de `listes/rencontres.txt` (cougars,
+sugar mommas, libertins, internationaux, gay, escorts, applis visant les adolescents) et une trentaine de
+mots-clés en plusieurs langues (`rencontr`, `dating`, `cougar`, `sugarmomma`, `toyboy`, `incontri`...).
+`maj_listes.py` rafraîchit ces listes et ajoute les listes porno (~350 000 domaines).
 
 Sources : liste **UT1** de l'Université Toulouse Capitole (catégories *dating* et *adult*, référence des
-contrôles parentaux et des établissements scolaires français), **HaGeZi NSFW**, **StevenBlack porn**,
-**Blocklist Project porn**. Les listes intégrées `listes/*.txt` couvrent les principaux sites (et les CDN
+contrôles parentaux et des établissements scolaires français), **ShadowWhisperer** (*Dating*, *Adult*),
+**HaGeZi NSFW**, **StevenBlack porn**, **Blocklist Project porn**. Les listes intégrées `listes/*.txt` couvrent les principaux sites (et les CDN
 des grands sites porno, les API des applis de rencontres) même sans ce téléchargement.
 
 ---
@@ -127,6 +131,7 @@ Options principales (`--help` pour tout voir) :
 | `--gap MIN` | silence qui sépare deux sessions (défaut 10 min) |
 | `--tz Europe/Paris` ou `+02:00` | fuseau d'affichage (défaut : celui du PC) |
 | `--alias 192.168.1.42=iPhone-Ado` | nommer un appareil (ou fichier `listes/clients.txt`) |
+| `--tous-sites N` | ajouter les N sites les plus visités par l'appareil, toutes catégories, pour repérer un site de rencontres inconnu des listes |
 | `--html`, `--csv`, `--detail`, `--ouvrir` | sorties |
 
 Le rapport indique pour chaque requête si AdGuard l'a **bloquée** (le site a été demandé mais pas
@@ -169,10 +174,16 @@ L'outil utilise aussi les décisions d'AdGuard : une requête bloquée par le **
 « pornographie » même si le domaine n'est dans aucune liste, et un **service bloqué** (Tinder...) est classé
 selon son nom.
 
-Détection en trois couches, dans cet ordre : listes intégrées, listes externes téléchargées, mots-clés
-(`porn`, `xxx`, `rencontr`, `dating`, `flirt`, `libertin`...), puis décisions d'AdGuard. Un site de
+Détection en trois couches, dans cet ordre : listes intégrées, listes externes, mots-clés
+(`porn`, `xxx`, `rencontr`, `dating`, `flirt`, `libertin`, `cougar`...), puis décisions d'AdGuard. Un site de
 rencontres inconnu des listes est donc quand même repéré si son nom contient un mot-clé, et le
-rapport indique pour chaque domaine quelle couche l'a détecté.
+rapport indique pour chaque domaine quelle couche l'a détecté. Quand un nom évoque à la fois le sexe et la
+rencontre (`sexe-rencontre.com`, `sexy-cougars.net`), il est classé « rencontres ».
+
+Pour débusquer un site de rencontres qui échapperait à tout cela, l'option `--tous-sites 60` (cochée par
+défaut dans l'interface graphique) ajoute au rapport les sites les plus visités par l'appareil, toutes
+catégories confondues : un nom inconnu qui revient chaque soir se repère à l'œil, et il suffit alors de
+l'ajouter dans `listes/rencontres.txt`.
 
 Astuce AdGuard : *Filtres > Services bloqués* permet de bloquer d'un clic Tinder, OnlyFans et
 **iCloud Private Relay** ; *Paramètres > Paramètres généraux > Contrôle parental* bloque les sites pour adultes

@@ -6,6 +6,7 @@ dist/
 rapports/
 listes/externes/*
 !listes/externes/rencontres_ut1.txt
+!listes/externes/rencontres_shadowwhisperer.txt
 adguard_analyse.config.json
 exemples/querylog.json
 *.csv

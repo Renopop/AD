@@ -291,3 +291,10 @@ rencontres-ados.com
 ados-rencontres.com
 chat-ados.com
 kiss-ados.com
+
+# --- Domaines techniques d'applis (apparaissent dès que l'appli est ouverte) ---
+bumbcdn.com
+tinderphotos.s3.amazonaws.com
+alovoa.com
+amourfeel.com
+flippedapp.net

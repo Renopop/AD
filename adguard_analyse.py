@@ -42,6 +42,8 @@ VERSION = "1.0"
 # ---------------------------------------------------------------------------
 
 CATEGORIES = ["porno", "rencontres", "chat-aleatoire"]
+# Ordre d'examen des mots-clés : un site à la fois "sexe" et "rencontre" est classé rencontres
+KEYWORD_ORDER = ["rencontres", "chat-aleatoire", "porno"]
 CATEGORY_LABELS = {
     "porno": "Pornographie",
     "rencontres": "Rencontres",
@@ -460,14 +462,14 @@ class Classifier(object):
         if best:
             return best[0][0], "liste " + best[0][1], best[1]
         labels = [l for l in host.split(".") if l not in self.excluded_labels]
-        for cat in CATEGORIES:
+        for cat in KEYWORD_ORDER:
             for kw in self.keywords.get(cat, []):
                 for label in labels:
                     if kw.matches(label):
                         return cat, "mot-clé", str(kw)
         if service_name:
             svc = service_name.lower()
-            for cat in CATEGORIES:
+            for cat in KEYWORD_ORDER:
                 for kw in self.keywords.get(cat, []):
                     if kw.matches(svc):
                         return cat, "service bloqué AdGuard", service_name
@@ -928,7 +930,7 @@ def typical_slots(hours_counter, min_share=0.15):
     return ["%02dh-%02dh" % (a, b % 24) for a, b in slots]
 
 
-def build_report(analysis, threshold_days=3, gap_minutes=10, top=25):
+def build_report(analysis, threshold_days=3, gap_minutes=10, top=25, top_sites=0):
     f = analysis.filters
     recs = analysis.records
     days_in_period = sorted(analysis.selected_per_day.keys())
@@ -994,7 +996,14 @@ def build_report(analysis, threshold_days=3, gap_minutes=10, top=25):
                             "cloudflare-dns.com...). Une appli ou un profil peut contourner AdGuard."
                             % (analysis.display_name(ip, names), cs.signals["dns_chiffre"]))
 
+    top_sites_rows = []
+    if top_sites and analysis.selected_hosts:
+        for dom, n in analysis.selected_hosts.most_common(top_sites):
+            cat = analysis.classifier.classify(dom)[0]
+            top_sites_rows.append((dom, n, cat))
+
     return {
+        "top_sites": top_sites_rows,
         "generated": dt.datetime.now(),
         "filters": f,
         "n_days": n_days,
@@ -1207,6 +1216,13 @@ def render_text(rep, detail=False):
     if len(rep["sessions"]) > 100:
         out.append("  ... (%d sessions au total, voir le rapport HTML ou le CSV)" % len(rep["sessions"]))
 
+    if rep["top_sites"]:
+        out.append("")
+        out.append("SITES LES PLUS VISITÉS PAR L'APPAREIL, TOUTES CATÉGORIES (pour repérer un site inconnu des listes)")
+        out.append("-" * 78)
+        for dom, n, cat in rep["top_sites"]:
+            out.append("  %-45s %6d  %s" % (dom[:45], n, CATEGORY_LABELS.get(cat, "") if cat else ""))
+
     if detail:
         out.append("")
         out.append("DÉTAIL DES REQUÊTES")
@@ -1360,6 +1376,13 @@ def render_html(rep, detail=True):
                     " ".join(_cat_tag(c) for c in sorted(s["categories"])), _esc(doms)))
     h.append("</table>")
 
+    if rep["top_sites"]:
+        h.append("<h2>Sites les plus visités par l'appareil <small>(toutes catégories, pour repérer un site inconnu des listes)</small></h2>")
+        h.append("<table><tr><th>Domaine</th><th class='num'>Requêtes</th><th>Catégorie</th></tr>")
+        for dom, n, cat in rep["top_sites"]:
+            h.append("<tr><td>%s</td><td class='num'>%d</td><td>%s</td></tr>" % (_esc(dom), n, _cat_tag(cat) if cat else ""))
+        h.append("</table>")
+
     if detail:
         h.append("<h2>Détail des requêtes</h2><details><summary>Afficher les %d requêtes</summary>" % len(rep["records"]))
         h.append("<table><tr><th>Date/heure</th><th>Catégorie</th><th>Domaine demandé</th><th>Résultat AdGuard</th><th>Détection</th></tr>")
@@ -1410,6 +1433,7 @@ class Job(object):
         self.threshold_days = 3
         self.gap_minutes = 10
         self.top = 25
+        self.top_sites = 0          # >0 : lister les N sites les plus visités, toutes catégories
         self.keep_all_hosts = False
 
 
@@ -1435,7 +1459,7 @@ def run_analysis(job, progress=None, for_clients=False):
         progress("ATTENTION : dossier 'listes' introuvable, aucune détection possible !")
     filters = build_filters(job)
     aliases = load_client_aliases(lists_dir, job.aliases)
-    analysis = Analysis(filters, classifier, aliases, keep_all_hosts=job.keep_all_hosts)
+    analysis = Analysis(filters, classifier, aliases, keep_all_hosts=job.keep_all_hosts or job.top_sites > 0)
 
     if job.api_url:
         api = AdGuardAPI(job.api_url, job.api_user, job.api_password, job.api_insecure)
@@ -1503,6 +1527,8 @@ def build_parser():
     outp.add_argument("--seuil-recurrence", type=int, default=3, metavar="N", help="nb de jours distincts pour 'récurrent' (défaut 3)")
     outp.add_argument("--gap", type=int, default=10, metavar="MIN", help="silence (minutes) séparant deux sessions (défaut 10)")
     outp.add_argument("--top", type=int, default=25, metavar="N", help="nombre de lignes dans les classements (défaut 25)")
+    outp.add_argument("--tous-sites", type=int, default=0, metavar="N",
+                      help="ajouter les N sites les plus visités par l'appareil, toutes catégories (pour repérer un site inconnu des listes)")
     outp.add_argument("--ouvrir", action="store_true", help="ouvrir le rapport HTML dans le navigateur")
 
     p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "test-domaine", "gui"],
@@ -1553,6 +1579,7 @@ def job_from_args(args):
     job.threshold_days = args.seuil_recurrence
     job.gap_minutes = args.gap
     job.top = args.top
+    job.top_sites = max(0, args.tous_sites)
     return job
 
 
@@ -1615,7 +1642,7 @@ def main(argv=None):
         print(render_clients_text(analysis))
         return 0
 
-    rep = build_report(analysis, job.threshold_days, job.gap_minutes, job.top)
+    rep = build_report(analysis, job.threshold_days, job.gap_minutes, job.top, job.top_sites)
     print(render_text(rep, detail=args.detail))
     if args.html:
         with open(args.html, "w", encoding="utf-8") as fh:

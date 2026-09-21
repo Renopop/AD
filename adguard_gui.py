@@ -133,6 +133,10 @@ class App(object):
         self.gap = tk.IntVar(value=10)
         ttk.Spinbox(flt, from_=1, to=180, textvariable=self.gap, width=5).grid(row=5, column=3, sticky="w")
         ttk.Label(flt, text="minutes sans requête sensible").grid(row=5, column=4, sticky="w")
+        self.top_sites = tk.BooleanVar(value=True)
+        ttk.Checkbutton(flt, text="ajouter au rapport les 60 sites les plus visités par l'appareil, toutes catégories "
+                                  "(pour repérer un site de rencontres inconnu des listes)",
+                        variable=self.top_sites).grid(row=6, column=0, columnspan=5, sticky="w")
         flt.columnconfigure(1, weight=1)
 
         # --- Actions
@@ -203,6 +207,7 @@ class App(object):
             "days": [v.get() for v in self.day_vars],
             "categories": {c: v.get() for c, v in self.cat_vars.items()},
             "threshold": self.threshold.get(), "gap": self.gap.get(), "open_html": self.open_html.get(),
+            "top_sites": self.top_sites.get(),
             "remember_pw": self.remember_pw.get(),
         }
         if self.remember_pw.get():
@@ -239,6 +244,7 @@ class App(object):
         self.threshold.set(int(cfg.get("threshold", 3)))
         self.gap.set(int(cfg.get("gap", 10)))
         self.open_html.set(bool(cfg.get("open_html", True)))
+        self.top_sites.set(bool(cfg.get("top_sites", True)))
 
     def _job(self, for_clients=False):
         job = core.Job()
@@ -271,6 +277,7 @@ class App(object):
         job.categories = [c for c, v in self.cat_vars.items() if v.get()] or list(core.CATEGORIES)
         job.threshold_days = max(1, int(self.threshold.get()))
         job.gap_minutes = max(1, int(self.gap.get()))
+        job.top_sites = 60 if self.top_sites.get() else 0
         return job
 
     # ------------------------------------------------------------------ actions
@@ -308,7 +315,7 @@ class App(object):
         def work():
             try:
                 analysis = core.run_analysis(job, lambda m: self.queue.put(("status", m)))
-                rep = core.build_report(analysis, job.threshold_days, job.gap_minutes)
+                rep = core.build_report(analysis, job.threshold_days, job.gap_minutes, top_sites=job.top_sites)
                 out_dir = os.path.join(app_dir(), "rapports")
                 os.makedirs(out_dir, exist_ok=True)
                 name = "rapport_%s.html" % dt.datetime.now().strftime("%Y-%m-%d_%Hh%M")

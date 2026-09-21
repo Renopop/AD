@@ -66,3 +66,14 @@ casualdating
 casual-dating
 onenightstand
 one-night-stand
+^celibat
+=celib
+incontri
+partnersuche
+singleboerse
+singlebörse
+namoro
+znakomstva
+seniordating
+senior-dating
+=lovers

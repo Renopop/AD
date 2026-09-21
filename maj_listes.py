@@ -4,7 +4,7 @@
 Télécharge des listes publiques de domaines dans listes/externes/ pour compléter les listes
 intégrées (à relancer de temps en temps : les listes évoluent).
 
-    python maj_listes.py              # listes standard (GitHub) : ~150 000 domaines porno, ~8 600 rencontres
+    python maj_listes.py              # listes standard (GitHub) : ~350 000 domaines porno, ~10 000 rencontres
     python maj_listes.py --complet    # ajoute la liste UT1 complète (Université Toulouse Capitole,
                                       # référence des contrôles parentaux français) : adult (~4 millions
                                       # de domaines, ~100 Mo, analyse plus lente et gourmande en mémoire)
@@ -24,6 +24,8 @@ import urllib.request
 # (fichier de sortie, URL, membre à extraire si archive tar.gz)
 SOURCES = [
     ("rencontres_ut1.txt", "https://raw.githubusercontent.com/olbat/ut1-blacklists/master/blacklists/dating/domains", None),
+    ("rencontres_shadowwhisperer.txt", "https://raw.githubusercontent.com/ShadowWhisperer/BlockLists/master/Lists/Dating", None),
+    ("porno_shadowwhisperer.txt", "https://raw.githubusercontent.com/ShadowWhisperer/BlockLists/master/Lists/Adult", None),
     ("porno_hagezi.txt", "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/nsfw-onlydomains.txt", None),
     ("porno_stevenblack.txt", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts", None),
     ("porno_blocklistproject.txt", "https://blocklistproject.github.io/Lists/porn.txt", None),

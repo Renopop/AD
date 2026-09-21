@@ -2,6 +2,7 @@
 #  - une ligne avec un point = domaine (et ses sous-domaines) ignoré : adultswim.com
 #  - une ligne sans point    = partie de domaine ignorée par les mots-clés : essex
 adultswim.com
+meetup.com
 wizzair.com
 essex
 sussex

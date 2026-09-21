@@ -54,12 +54,19 @@ cd AD
 python adguard_analyse.py          # ouvre l'interface graphique
 ```
 
-Facultatif : télécharger une liste publique de ~76 000 domaines pornographiques qui complète les listes
-intégrées (à refaire de temps en temps) :
+**Recommandé** : télécharger les listes publiques qui complètent les listes intégrées (à refaire de temps
+en temps, elles évoluent) :
 
 ```
-python maj_listes.py
+python maj_listes.py              # ~150 000 domaines pornographiques + 8 600 sites de rencontres (liste UT1)
+python maj_listes.py --complet    # ajoute la liste UT1 complète "adult" (~4 millions de domaines, ~100 Mo,
+                                  # analyse plus lente ; utile seulement si un site échappe aux listes standard)
 ```
+
+Sources : liste **UT1** de l'Université Toulouse Capitole (catégories *dating* et *adult*, référence des
+contrôles parentaux et des établissements scolaires français), **HaGeZi NSFW**, **StevenBlack porn**,
+**Blocklist Project porn**. Les listes intégrées `listes/*.txt` couvrent les principaux sites (et les CDN
+des grands sites porno, les API des applis de rencontres) même sans ce téléchargement.
 
 ---
 
@@ -157,6 +164,15 @@ Wi-Fi, donc le bail statique fonctionne.
 L'outil utilise aussi les décisions d'AdGuard : une requête bloquée par le **contrôle parental** est classée
 « pornographie » même si le domaine n'est dans aucune liste, et un **service bloqué** (Tinder...) est classé
 selon son nom.
+
+Détection en trois couches, dans cet ordre : listes intégrées, listes externes téléchargées, mots-clés
+(`porn`, `xxx`, `rencontr`, `dating`, `flirt`, `libertin`...), puis décisions d'AdGuard. Un site de
+rencontres inconnu des listes est donc quand même repéré si son nom contient un mot-clé, et le
+rapport indique pour chaque domaine quelle couche l'a détecté.
+
+Astuce AdGuard : *Filtres > Services bloqués* permet de bloquer d'un clic Tinder, OnlyFans et
+**iCloud Private Relay** ; *Paramètres > Paramètres généraux > Contrôle parental* bloque les sites pour adultes
+connus d'AdGuard. Les tentatives apparaissent alors comme « bloquées » dans le rapport.
 
 Le classement d'un domaine se teste avec `python adguard_analyse.py test-domaine <domaine>`.
 

@@ -28,8 +28,6 @@ hily.com
 tantanapp.com
 jaumo.com
 twoo.com
-skout.com
-meetme.com
 taimi.com
 weareher.com
 scruff.com
@@ -74,12 +72,6 @@ attractiveworld.net
 celibatairesduweb.com
 wannonce.com
 
-# --- Applications "rencontre d'amis" très utilisées par les adolescents ---
-yubo.live
-yubo.app
-wizz.app
-hoop.photo
-
 # --- Autres sites et applis (international, niches, extra-conjugal, libertin) ---
 gleeden.com
 wyylde.com
@@ -97,7 +89,6 @@ mingle2.com
 waplog.com
 hotornot.com
 tchatche.com
-coco.gg
 chatiw.com
 lovehabibi.com
 inshallah.com
@@ -136,12 +127,6 @@ sweetring.com
 pairs.lv
 omiai-jp.com
 azarlive.com
-
-# --- Sites "rencontres" visés adolescents ---
-spotafriend.com
-mylol.com
-teenchat.com
-yellw.co
 
 # --- Cougars / femmes mûres / "toy boys" ---
 cougarlife.com
@@ -285,13 +270,6 @@ ladyxena.com
 tryst.link
 eurogirlsescort.com
 
-# --- Rencontres visant les mineurs / très jeunes ---
-rencontre-ados.net
-rencontres-ados.com
-ados-rencontres.com
-chat-ados.com
-kiss-ados.com
-
 # --- Domaines techniques d'applis (apparaissent dès que l'appli est ouverte) ---
 bumbcdn.com
 tinderphotos.s3.amazonaws.com
@@ -415,14 +393,6 @@ millionairematch.com
 elitemeetsbeauty.com
 daddyhunt.com
 bicupid.com
-
-# --- Applis "rencontre d'amis" et social discovery très utilisées par les adolescents ---
-wizzapp.com
-getwizz.io
-wizz.chat
-litmatch.com
-litmatchs.com
-litmatchapp.com
 
 # --- Compagnons virtuels / "petites amies IA" (relations romantiques simulées, souvent sexualisées) ---
 replika.com

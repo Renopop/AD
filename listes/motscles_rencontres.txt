@@ -28,8 +28,6 @@ echangiste
 =coquine
 =coquins
 =coquines
-=yubo
-=wizz
 rencontr
 matrimon
 plancul
@@ -75,7 +73,6 @@ znakomstva
 seniordating
 senior-dating
 =lovers
-litmatch
 sugarbab
 girlfriendgpt
 =aigirl

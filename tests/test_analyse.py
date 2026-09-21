@@ -354,5 +354,19 @@ class TestTirets(unittest.TestCase):
         self.assertEqual(c.classify("strip-chat.webcam")[0], "porno")
         self.assertEqual(c.classify("les-cougars-de-lyon.fr")[0], "rencontres")
         self.assertIsNone(c.classify("mon-site-essex.co.uk")[0])
-        self.assertEqual(c.classify("wizzapp.com")[0], "rencontres")
+        self.assertEqual(c.classify("wizzapp.com")[0], "rencontres-ados")
         self.assertEqual(c.classify("api.replika.com")[0], "rencontres")
+
+
+class TestRencontresAdos(unittest.TestCase):
+    def test_categorie_ados(self):
+        c = make_classifier()
+        self.assertEqual(c.classify("yubo.live")[0], "rencontres-ados")
+        self.assertEqual(c.classify("api.wizzapp.com")[0], "rencontres-ados")
+        self.assertEqual(c.classify("rencontre-ados.net")[0], "rencontres-ados")
+        self.assertEqual(c.classify("teen-dating-club.com")[0], "rencontres-ados")
+        self.assertEqual(c.classify("tchat-jeunes-rencontres.fr")[0], "rencontres-ados")
+        self.assertEqual(c.classify("www.tinder.com")[0], "rencontres")
+        self.assertEqual(c.classify("www.cougarlife.com")[0], "rencontres")
+        for host in ("www.ado.fr", "les-ados-de-lyon.fr", "www.teenvogue.com", "www.canteen.fr"):
+            self.assertIsNone(c.classify(host)[0], host)

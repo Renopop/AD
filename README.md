@@ -4,7 +4,8 @@ Outil Python **sans dépendance** (Python 3.8+, Tkinter inclus dans Python pour 
 journal des requêtes DNS d'AdGuard Home (installé sur un NAS Synology, par exemple) et fait ressortir,
 pour un appareil donné :
 
-- les consultations de **sites pornographiques**, de **sites/applis de rencontres** et de **tchats vidéo
+- les consultations de **sites pornographiques**, de **sites/applis de rencontres pour adultes**, d'**applis
+  de « rencontre d'amis » visant les adolescents** (Yubo, Wizz, Hoop, Litmatch, Coco...) et de **tchats vidéo
   avec des inconnus** (type Omegle) ;
 - filtrées par **appareil**, **dates**, **plages horaires** (y compris à cheval sur minuit, ex. 22h-6h)
   et **jours de la semaine** (week-end, semaine) ;
@@ -72,9 +73,11 @@ Toulouse Capitole) et **ShadowWhisperer « Dating »** (1 400 domaines, dont bea
 seniors, cougars et « casual »). S'y ajoutent les 390 sites et applis de `listes/rencontres.txt` : toutes les marques des grands
 groupes (Match Group, Bumble, Spark Networks, ParshipMeet) dans chaque pays, les sites généralistes majeurs
 de France, Belgique, Suisse, Québec, Allemagne, Pays-Bas, Espagne, Italie, Royaume-Uni, Russie, Inde, Asie
-et monde arabe, les cougars, sugar mommas, libertins, seniors, gay, escorts, les applis de « rencontre
-d'amis » des adolescents (Yubo, Wizz, Hoop, Litmatch, Spotafriend) et les « petites amies IA » (Replika,
-Candy.ai, Nomi...) et une trentaine de
+et monde arabe, les cougars, sugar mommas, libertins, seniors, gay, escorts, les « petites amies IA » (Replika,
+Candy.ai, Nomi...). Les applis de « rencontre d'amis » visant les adolescents (Yubo, Wizz, Hoop, Litmatch,
+Spotafriend, MyLOL, Coco...) forment une catégorie à part, **Rencontres ados**, dans `listes/rencontres-ados.txt` :
+c'est là que des adultes mal intentionnés entrent en contact avec des jeunes. Un site de rencontres dont le
+nom contient « ados », « teen », « jeunes »... y est basculé automatiquement et une trentaine de
 mots-clés en plusieurs langues (`rencontr`, `dating`, `cougar`, `sugarmomma`, `toyboy`, `incontri`...).
 `maj_listes.py` rafraîchit ces listes et ajoute les listes porno (~350 000 domaines).
 
@@ -133,7 +136,7 @@ Options principales (`--help` pour tout voir) :
 | `--du`, `--au`, `--jour`, `--jours N` | période (dates `JJ/MM/AAAA` ou `AAAA-MM-JJ`, incluses) |
 | `--heures "22h-6h, 12h-14h"`, `--nuit` | plages horaires (traversent minuit si besoin) |
 | `--semaine lun,mar`, `--weekend` | jours de la semaine |
-| `--categories porno,rencontres,chat-aleatoire` | catégories analysées (défaut : toutes) |
+| `--categories porno,rencontres,rencontres-ados,chat-aleatoire` | catégories analysées (défaut : toutes) |
 | `--seuil-recurrence N` | « récurrent » = vu au moins N jours différents (défaut 3) |
 | `--gap MIN` | silence qui sépare deux sessions (défaut 10 min) |
 | `--tz Europe/Paris` ou `+02:00` | fuseau d'affichage (défaut : celui du PC) |
@@ -171,7 +174,7 @@ Wi-Fi, donc le bail statique fonctionne.
 
 | Fichier | Contenu |
 |---|---|
-| `porno.txt`, `rencontres.txt`, `chat-aleatoire.txt` | domaines (sous-domaines inclus). Formats acceptés : `domaine.com`, `0.0.0.0 domaine.com`, `\|\|domaine.com^` |
+| `porno.txt`, `rencontres.txt`, `rencontres-ados.txt`, `chat-aleatoire.txt` | domaines (sous-domaines inclus). Formats acceptés : `domaine.com`, `0.0.0.0 domaine.com`, `\|\|domaine.com^` |
 | `motscles_*.txt` | mots-clés cherchés dans chaque partie du nom (`porn`, `^sex` = commence par, `sex$` = finit par, `=adult` = exactement) |
 | `exclusions.txt` | faux positifs à ignorer : domaines (`adultswim.com`) ou mots (`essex`) |
 | `clients.txt` | `IP  nom` pour nommer les appareils |

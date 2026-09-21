@@ -1,0 +1,33 @@
+# Applis et sites de "rencontre d'amis" / rencontres visant les adolescents et les mineurs.
+# C'est là que des adultes mal intentionnés entrent en contact avec des jeunes.
+# Un domaine par ligne (sous-domaines inclus). Cette liste est prioritaire sur rencontres.txt.
+
+# --- Applis "rencontre d'amis" (social discovery) ---
+yubo.live
+yubo.app
+yellw.co
+wizzapp.com
+getwizz.io
+wizz.chat
+wizz.app
+hoop.photo
+litmatch.com
+litmatchs.com
+litmatchapp.com
+spotafriend.com
+mylol.com
+skout.com
+meetme.com
+swipr.app
+purp.app
+
+# --- Tchats et sites "ados" ---
+teenchat.com
+rencontre-ados.net
+rencontres-ados.com
+ados-rencontres.com
+chat-ados.com
+kiss-ados.com
+coco.gg
+coco.fr
+tchat-ados.com

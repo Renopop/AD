@@ -41,12 +41,15 @@ VERSION = "1.0"
 # Constantes
 # ---------------------------------------------------------------------------
 
-CATEGORIES = ["porno", "rencontres", "chat-aleatoire"]
+CATEGORIES = ["porno", "rencontres", "rencontres-ados", "chat-aleatoire"]
 # Ordre d'examen des mots-clés : un site à la fois "sexe" et "rencontre" est classé rencontres
-KEYWORD_ORDER = ["rencontres", "chat-aleatoire", "porno"]
+KEYWORD_ORDER = ["rencontres-ados", "rencontres", "chat-aleatoire", "porno"]
+# Un site de rencontres / tchat dont le nom contient l'un de ces mots vise les mineurs
+TEEN_MARKERS = {"ado", "ados", "teen", "teens", "teenager", "teenagers", "jeunes", "mineur", "mineurs", "lyceen", "lyceens"}
 CATEGORY_LABELS = {
     "porno": "Pornographie",
-    "rencontres": "Rencontres",
+    "rencontres": "Rencontres adultes",
+    "rencontres-ados": "Rencontres ados",
     "chat-aleatoire": "Tchat vidéo avec inconnus",
 }
 
@@ -436,7 +439,7 @@ class Classifier(object):
         if os.path.isdir(ext):
             for name in sorted(os.listdir(ext)):
                 cat = None
-                for c in CATEGORIES:
+                for c in sorted(CATEGORIES, key=len):
                     if name.lower().startswith(c):
                         cat = c
                 if cat is None:
@@ -476,6 +479,9 @@ class Classifier(object):
             for kw in self.keywords.get(cat, []):
                 for label, whole in labels:
                     if (whole or kw.mode == "contains") and kw.matches(label):
+                        if cat in ("rencontres", "chat-aleatoire") and any(
+                                w and l in TEEN_MARKERS for l, w in labels):
+                            return "rencontres-ados", "mot-clé", "%s + ados" % kw
                         return cat, "mot-clé", str(kw)
         if service_name:
             svc = service_name.lower()
@@ -1258,7 +1264,7 @@ table{border-collapse:collapse;width:100%;font-size:13px} th,td{border:1px solid
 th{background:#eef1f5} tr:nth-child(even) td{background:#fafbfc}
 .num{text-align:right;white-space:nowrap} .heat td{text-align:center;width:3.4%;padding:3px 0}
 .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:12px;color:#fff}
-.porno{background:#c0392b} .rencontres{background:#8e44ad} .chat-aleatoire{background:#d35400}
+.porno{background:#c0392b} .rencontres{background:#8e44ad} .rencontres-ados{background:#1f77b4} .chat-aleatoire{background:#d35400}
 .blk{color:#c0392b;font-weight:bold} .ok{color:#27ae60}
 .kpi{display:inline-block;min-width:150px;margin:6px 14px 6px 0} .kpi b{display:block;font-size:22px}
 .bar{background:#3b7ddd;height:12px;display:inline-block;vertical-align:middle}
@@ -1498,7 +1504,7 @@ def run_analysis(job, progress=None, for_clients=False):
 def build_parser():
     p = argparse.ArgumentParser(
         prog="adguard_analyse",
-        description="Analyse des journaux AdGuard Home : sites pornographiques, de rencontres et tchats "
+        description="Analyse des journaux AdGuard Home : sites pornographiques, de rencontres (adultes / ados) et tchats "
                     "avec inconnus, par appareil, dates et plages horaires. Sans argument : interface graphique.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Exemples :
@@ -1527,7 +1533,7 @@ def build_parser():
     flt.add_argument("--semaine", metavar="JOURS", help="jours de la semaine : lun,mar,... ou 'weekend' ou 'semaine'")
     flt.add_argument("--weekend", action="store_true", help="samedi et dimanche uniquement")
     flt.add_argument("--nuit", action="store_true", help="raccourci pour --heures 22h-6h")
-    flt.add_argument("--categories", metavar="LISTE", help="catégories : porno,rencontres,chat-aleatoire (défaut : toutes)")
+    flt.add_argument("--categories", metavar="LISTE", help="catégories : porno,rencontres,rencontres-ados,chat-aleatoire (défaut : toutes)")
     flt.add_argument("--tz", metavar="FUSEAU", help="fuseau horaire d'affichage (défaut : celui du PC), ex : Europe/Paris ou +02:00")
 
     outp = p.add_argument_group("Sortie")

@@ -1,0 +1,9 @@
+# Mots-clés "rencontres ados" (même syntaxe que motscles_porno.txt). Examinés avant ceux des rencontres adultes.
+# En plus de ces mots-clés, tout site classé "rencontres" ou "tchat" dont le nom contient ado, ados, teen,
+# teens, teenager, jeunes ou mineur est automatiquement basculé en "rencontres ados".
+teenchat
+teendating
+=yubo
+=wizz
+litmatch
+spotafriend

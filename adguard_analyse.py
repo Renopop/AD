@@ -462,17 +462,20 @@ class Classifier(object):
         if best:
             return best[0][0], "liste " + best[0][1], best[1]
         # chaque partie du nom, plus ses morceaux séparés par des tirets (hot-matures -> hot, matures)
+        # (texte, entier) : un nom à tirets n'est testé en entier que par les mots-clés "contenu"
         labels = []
         for l in host.split("."):
             if l in self.excluded_labels:
                 continue
-            labels.append(l)
             if "-" in l:
-                labels.extend(p for p in l.split("-") if p and p not in self.excluded_labels)
+                labels.append((l, False))
+                labels.extend((p, True) for p in l.split("-") if p and p not in self.excluded_labels)
+            else:
+                labels.append((l, True))
         for cat in KEYWORD_ORDER:
             for kw in self.keywords.get(cat, []):
-                for label in labels:
-                    if kw.matches(label):
+                for label, whole in labels:
+                    if (whole or kw.mode == "contains") and kw.matches(label):
                         return cat, "mot-clé", str(kw)
         if service_name:
             svc = service_name.lower()

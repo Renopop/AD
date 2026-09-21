@@ -4,7 +4,8 @@ build/
 dist/
 *.spec
 rapports/
-listes/externes/
+listes/externes/*
+!listes/externes/rencontres_ut1.txt
 adguard_analyse.config.json
 exemples/querylog.json
 *.csv

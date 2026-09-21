@@ -63,6 +63,10 @@ python maj_listes.py --complet    # ajoute la liste UT1 complète "adult" (~4 mi
                                   # analyse plus lente ; utile seulement si un site échappe aux listes standard)
 ```
 
+La liste UT1 « dating » est déjà livrée dans le dépôt (`listes/externes/rencontres_ut1.txt`, licence
+CC BY-SA 4.0, Université Toulouse Capitole) : la détection des sites de rencontres est donc complète dès
+l'installation ; `maj_listes.py` la rafraîchit et ajoute les listes porno.
+
 Sources : liste **UT1** de l'Université Toulouse Capitole (catégories *dating* et *adult*, référence des
 contrôles parentaux et des établissements scolaires français), **HaGeZi NSFW**, **StevenBlack porn**,
 **Blocklist Project porn**. Les listes intégrées `listes/*.txt` couvrent les principaux sites (et les CDN

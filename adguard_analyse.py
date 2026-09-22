@@ -138,12 +138,35 @@ APP_SIGNATURES = {
     "Xbox": ["xboxlive.com", "xbox.com"],
     "Nintendo": ["nintendo.net", "nintendo.com"],
     "Reddit": ["reddit.com", "redd.it", "redditmedia.com", "redditstatic.com"],
-    "Amazon": ["amazon.fr", "amazon.com", "amazonaws.com"],
+    "Amazon": ["amazon.fr", "amazon.com", "amazon.de", "primevideo.com", "media-amazon.com"],
     "Google": ["google.com", "googleapis.com", "gstatic.com", "google.fr"],
     "Apple / iCloud (système)": ["apple.com", "icloud.com", "icloud-content.com", "apple-dns.net", "mzstatic.com",
                                  "aaplimg.com", "cdn-apple.com", "apple-cloudkit.com"],
     "Microsoft (système)": ["microsoft.com", "msftconnecttest.com", "windowsupdate.com", "live.com", "office.com"],
+    "Jeux mobiles divers": ["supercell.com", "supercellgames.com", "clashroyaleapp.com", "brawlstarsgame.com",
+                            "kingapps.io", "king.com", "miniclip.com", "gameloft.com", "ea.com", "activision.com",
+                            "callofduty.com", "mihoyo.com", "hoyoverse.com", "playrix.com", "rovio.com", "zynga.com"],
+    "Twitter/X": ["twitter.com", "twimg.com", "x.com"],
+    "Wattpad": ["wattpad.com", "wattpad.io"],
+    "Crunchyroll / animes": ["crunchyroll.com", "vrv.co", "animedigitalnetwork.fr", "adn.fr"],
+    "Publicité / mesure d'audience (bruit des applis)": [
+        "doubleclick.net", "googlesyndication.com", "googleadservices.com", "google-analytics.com", "app-measurement.com",
+        "crashlytics.com", "firebase.io", "firebaseio.com", "firebaseinstallations.googleapis.com", "appsflyer.com",
+        "adjust.com", "adjust.io", "branch.io", "amplitude.com", "mixpanel.com", "segment.io", "sentry.io", "onesignal.com",
+        "unityads.unity3d.com", "applovin.com", "applvn.com", "ironsrc.com", "supersonicads.com", "chartboost.com",
+        "vungle.com", "inmobi.com", "moatads.com", "adcolony.com", "adnxs.com", "criteo.com", "criteo.net", "rubiconproject.com",
+        "pubmatic.com", "openx.net", "taboola.com", "outbrain.com", "scorecardresearch.com", "demdex.net", "omtrdc.net",
+        "adsrvr.org", "casalemedia.com", "smartadserver.com", "bidswitch.net", "liftoff.io", "tapjoy.com", "fyber.com",
+        "singular.net", "kochava.com", "braze.com", "appboy.com", "appboycdn.com", "hotjar.com", "datadoghq.com",
+        "bugsnag.com", "newrelic.com", "nr-data.net", "flurry.com", "adform.net", "yieldmo.com", "sharethrough.com"],
+    "Infrastructure / CDN (bruit technique)": [
+        "akamai.net", "akamaiedge.net", "akamaized.net", "akamaihd.net", "edgekey.net", "edgesuite.net", "cloudfront.net",
+        "amazonaws.com", "cloudflare.com", "cloudflare.net", "fastly.net", "fastlylb.net", "azureedge.net", "azure.com",
+        "windows.net", "llnwd.net", "cdn77.org", "jsdelivr.net", "unpkg.com", "gvt1.com", "gvt2.com", "1e100.net",
+        "ntp.org", "pool.ntp.org", "digicert.com", "letsencrypt.org", "globalsign.com", "sectigo.com", "pki.goog",
+        "apple-dns.net", "captive.apple.com", "msftncsi.com", "connectivitycheck.gstatic.com", "in-addr.arpa", "ip6.arpa"],
 }
+NOISE_APPS = {"Publicité / mesure d'audience (bruit des applis)", "Infrastructure / CDN (bruit technique)"}
 
 
 # Indices (indicatifs) sur la nature de l'activité d'après le sous-domaine demandé
@@ -1218,9 +1241,11 @@ def build_activity(analysis, gap_minutes=10, top_other=30):
         day_app[t.date()][app] += 1
     for a in apps.values():
         a["active_seconds"] = sum(max(60, (x["end"] - x["start"]).total_seconds()) for x in a["sessions"])
-    ordered = sorted(apps.values(), key=lambda a: (a["app"] == "(autres sites)", -a["count"]))
+    ordered = sorted(apps.values(), key=lambda a: (a["app"] in NOISE_APPS, a["app"] == "(autres sites)", -a["count"]))
     timeline = []
     for a in ordered:
+        if a["app"] in NOISE_APPS:
+            continue   # pas de sessions pour le bruit publicitaire / technique
         for x in a["sessions"]:
             timeline.append((x["start"], x["end"], a["app"], x["count"], x["hints"]))
     timeline.sort(key=lambda x: x[0])
@@ -1240,6 +1265,9 @@ def render_activity_text(act, filters):
     out.append("")
     out.append("Rappel : le DNS montre QUAND une appli est utilisée, jamais le contenu, le correspondant ni le sens")
     out.append("(envoyé/reçu). Les indices entre parenthèses sont déduits des sous-domaines et restent indicatifs.")
+    out.append("'(autres sites)' = requêtes qui ne correspondent à aucune appli connue de l'outil : sites visités dans le")
+    out.append("navigateur ou applis non répertoriées (liste en fin de rapport). Le bruit publicitaire et technique")
+    out.append("généré par les applis est compté à part et n'apparaît pas dans la chronologie.")
     if not act["apps"]:
         out.append("")
         out.append("Aucune requête pour cet appareil sur la période.")
@@ -1289,7 +1317,9 @@ def render_activity_html(act, filters):
     h.append("<div class='card'><ul>" + "".join("<li>%s</li>" % _esc(p) for p in describe_filters(filters)[:-1])
              + "<li>%d requêtes DNS ; sessions séparées par %d min de silence</li></ul></div>" % (act["total"], act["gap_minutes"]))
     h.append("<div class='warn'>Le DNS montre <b>quand</b> une appli est utilisée, jamais le contenu des échanges, le "
-             "correspondant ni le sens (envoyé / reçu). Les indices sont déduits des sous-domaines et restent indicatifs.</div>")
+             "correspondant ni le sens (envoyé / reçu). Les indices sont déduits des sous-domaines et restent indicatifs. "
+             "<b>(autres sites)</b> = requêtes sans appli connue : sites visités dans le navigateur ou applis non répertoriées, "
+             "listés en fin de rapport. Le bruit publicitaire et technique des applis est compté à part.</div>")
     if not act["apps"]:
         h.append("<div class='card'>Aucune requête pour cet appareil sur la période.</div></div></body></html>")
         return "\n".join(h)

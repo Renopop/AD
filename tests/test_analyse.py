@@ -436,7 +436,7 @@ class TestActivite(unittest.TestCase):
         wa = [x for x in act["apps"] if x["app"] == "WhatsApp"][0]
         self.assertEqual(wa["count"], 4)
         self.assertEqual(len(wa["sessions"]), 2)
-        self.assertEqual(wa["hints"]["média envoyé ou reçu (photo, vidéo, vocal, document)"], 2)
+        self.assertEqual(wa["hints"][core.HINT_MEDIA], 2)
         self.assertEqual(act["other"][0], ("lemonde.fr", 1, None))
         txt = core.render_activity_text(act, a.filters)
         self.assertIn("WhatsApp", txt)
@@ -460,3 +460,36 @@ class TestActivite(unittest.TestCase):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "adguard_analyse.py"), "activite", "--log", log],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.assertNotEqual(out.returncode, 0)   # --client obligatoire
+
+
+class TestDetailWhatsApp(unittest.TestCase):
+    def test_detail(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 9, 5, 23, 0, tzinfo=PARIS)   # samedi soir
+        hosts = ["e7.whatsapp.net", "mmg.whatsapp.net", "mmg.whatsapp.net", "mmg.whatsapp.net", "mmg.whatsapp.net",
+                 "mmg.whatsapp.net", "pps.whatsapp.net", "v.whatsapp.net", "api.snapchat.com"]
+        es = [entry(base + dt.timedelta(minutes=i), h, "10.0.0.5") for i, h in enumerate(hosts)]
+        es.append(entry(base + dt.timedelta(days=1, hours=-13), "e3.whatsapp.net", "10.0.0.5"))
+        a = core.Analysis(core.Filters(clients=["10.0.0.5"], tz=PARIS), c, keep_all_records=True)
+        a.feed(es)
+        det = core.build_app_detail(a, "WhatsApp", gap_minutes=10)
+        self.assertEqual(det["total"], 9)
+        self.assertEqual(len(det["days"]), 2)
+        self.assertEqual(det["hints"][core.HINT_MEDIA], 5)
+        labels = [l for _, l in det["notable"]]
+        self.assertTrue(any("échange soutenu de médias" in l for l in labels))
+        self.assertTrue(any("vérification / enregistrement" in l for l in labels))
+        self.assertTrue(any("activité de nuit" in l for l in labels))
+        self.assertEqual(det["days"][dt.date(2026, 9, 5)]["night"], 8)
+        txt = core.render_app_detail_text(det)
+        self.assertIn("SOUS-DOMAINES", txt)
+        self.assertIn("v.whatsapp.net", txt)
+        self.assertIn("Détail WhatsApp", core.render_app_detail_html(det))
+        self.assertIsNone(core.build_app_detail(a, "TikTok"))
+
+    def test_cli_appli(self):
+        p = core.build_parser()
+        job = core.job_from_args(p.parse_args(["activite", "--log", "x", "--client", "1.2.3.4", "--appli", "snapchat"]))
+        self.assertEqual(job.detail_apps, ["Snapchat"])
+        with self.assertRaises(ValueError):
+            core.job_from_args(p.parse_args(["activite", "--log", "x", "--client", "1.2.3.4", "--appli", "inconnue"]))

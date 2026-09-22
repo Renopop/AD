@@ -19,6 +19,8 @@ import random
 
 TZ = dt.timezone(dt.timedelta(hours=2))
 
+WHATSAPP = ["e7.whatsapp.net", "e12.whatsapp.net", "g.whatsapp.net", "mmg.whatsapp.net", "mmg.whatsapp.net",
+            "media-cdg4-1.cdn.whatsapp.net", "pps.whatsapp.net", "static.whatsapp.net", "dit.whatsapp.net"]
 NORMAL = ["gateway.icloud.com", "time-ios.apple.com", "gsp-ssl.ls.apple.com", "api.snapchat.com",
           "app.snapchat.com", "sc-cdn.net", "api16-normal-c-useast1a.tiktokv.com", "v16-webapp.tiktok.com",
           "i.instagram.com", "graph.instagram.com", "www.google.com", "youtubei.googleapis.com",
@@ -64,6 +66,18 @@ def main():
         for _ in range(random.randint(250, 400)):
             t = base + dt.timedelta(minutes=random.randint(7 * 60, 23 * 60 + 30), seconds=random.randint(0, 59))
             rows.append(entry(t, random.choice(NORMAL), "192.168.1.42"))
+        # iPhone : WhatsApp par vagues (matin, midi, soir tard), avec une rafale de médias le week-end
+        for start_h, n_req in ((7, 6), (12, 10), (18, 12), (22, 14)):
+            t = base + dt.timedelta(hours=start_h, minutes=random.randint(0, 50))
+            for k in range(n_req):
+                t += dt.timedelta(seconds=random.randint(10, 300))
+                rows.append(entry(t, random.choice(WHATSAPP), "192.168.1.42"))
+        if day.weekday() >= 5:
+            t = base + dt.timedelta(hours=23, minutes=15)
+            for k in range(8):
+                rows.append(entry(t + dt.timedelta(seconds=40 * k), "mmg.whatsapp.net", "192.168.1.42"))
+        if n == 3:
+            rows.append(entry(base + dt.timedelta(hours=16, minutes=2), "v.whatsapp.net", "192.168.1.42"))
         # PC : 18h-22h
         for _ in range(random.randint(80, 150)):
             t = base + dt.timedelta(minutes=random.randint(18 * 60, 22 * 60), seconds=random.randint(0, 59))

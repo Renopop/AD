@@ -171,11 +171,19 @@ NOISE_APPS = {"Publicité / mesure d'audience (bruit des applis)", "Infrastructu
 
 # Indices (indicatifs) sur la nature de l'activité d'après le sous-domaine demandé
 HOST_HINTS = [
-    (re.compile(r"^mmg(-fna)?\.whatsapp\.net$"), "WhatsApp", "média envoyé ou reçu (photo, vidéo, vocal, document)"),
-    (re.compile(r"^media-.*\.cdn\.whatsapp\.net$"), "WhatsApp", "média téléchargé"),
+    # --- WhatsApp : .net = serveurs de l'appli, .com = site web / services Meta
+    (re.compile(r"^mmg(-fna)?\.whatsapp\.net$"), "WhatsApp", "média envoyé ou reçu (photo, vidéo, vocal, document, statut)"),
+    (re.compile(r"^(media|mmx)[-.].*\.cdn\.whatsapp\.net$"), "WhatsApp", "média reçu via le CDN (probable)"),
     (re.compile(r"^pps\.whatsapp\.net$"), "WhatsApp", "photos de profil consultées"),
-    (re.compile(r"^(e\d+|g)\.whatsapp\.net$"), "WhatsApp", "connexion à la messagerie"),
+    (re.compile(r"^(e\d+|g)\.whatsapp\.net$"), "WhatsApp", "connexion au serveur de messagerie"),
+    (re.compile(r"^v\.whatsapp\.net$"), "WhatsApp", "vérification / enregistrement du numéro (installation, réinstallation, changement d'appareil)"),
     (re.compile(r"^static\.whatsapp\.net$"), "WhatsApp", "ouverture de l'appli"),
+    (re.compile(r"^scontent\.whatsapp\.net$"), "WhatsApp", "stickers / aperçus de liens"),
+    (re.compile(r"^graph\.whatsapp\.(com|net)$"), "WhatsApp", "services Meta (stickers, aperçus, entreprises)"),
+    (re.compile(r"^web\.whatsapp\.com$"), "WhatsApp", "WhatsApp Web (appareil lié : PC, tablette)"),
+    (re.compile(r"^(dit|crashlogs)\.whatsapp\.net$"), "WhatsApp", "télémétrie / rapports techniques"),
+    (re.compile(r"^(www\.)?whatsapp\.com$"), "WhatsApp", "site web WhatsApp"),
+    # --- autres applis
     (re.compile(r"^(app|gcp\.api|api)\.snapchat\.com$"), "Snapchat", "appli active (messages, stories)"),
     (re.compile(r".*\.sc-cdn\.net$"), "Snapchat", "snaps / stories chargés"),
     (re.compile(r"^i\.instagram\.com$"), "Instagram", "appli active (fil, messages)"),
@@ -187,6 +195,15 @@ HOST_HINTS = [
     (re.compile(r".*\.discord\.media$"), "Discord", "appel vocal / vidéo"),
     (re.compile(r".*\.googlevideo\.com$"), "YouTube", "vidéos regardées"),
 ]
+HINT_MEDIA = "média envoyé ou reçu (photo, vidéo, vocal, document, statut)"
+HINT_MEDIA_CDN = "média reçu via le CDN (probable)"
+HINT_PROFILE = "photos de profil consultées"
+HINT_CONNECT = "connexion au serveur de messagerie"
+# Indices signalés comme "événements notables" dans le détail d'une appli
+NOTABLE_HINTS = {
+    "vérification / enregistrement du numéro (installation, réinstallation, changement d'appareil)",
+    "WhatsApp Web (appareil lié : PC, tablette)",
+}
 
 
 def host_hint(host):
@@ -1250,10 +1267,189 @@ def build_activity(analysis, gap_minutes=10, top_other=30):
             timeline.append((x["start"], x["end"], a["app"], x["count"], x["hints"]))
     timeline.sort(key=lambda x: x[0])
     other_rows = [(dom, n, analysis.classifier.classify(dom)[0]) for dom, n in other.most_common(top_other)]
-    return {"apps": ordered, "other": other_rows, "day_app": day_app, "timeline": timeline,
+    return {"apps": ordered, "other": other_rows, "day_app": day_app, "timeline": timeline, "details": [],
             "total": len(recs), "gap_minutes": gap_minutes,
             "client": (analysis.filters.clients[0] if analysis.filters.clients else "?"),
             "first": recs[0][0] if recs else None, "last": recs[-1][0] if recs else None}
+
+
+def build_app_detail(analysis, app_name, gap_minutes=10, night=(22 * 60, 6 * 60), burst_min=5):
+    """Détail maximal pour une appli (WhatsApp par défaut) : par jour, par heure, sous-domaines, événements."""
+    recs = [(t, h) for t, h in sorted(analysis.all_records or [], key=lambda r: r[0]) if app_of_host(h) == app_name]
+    if not recs:
+        return None
+    gap = dt.timedelta(minutes=gap_minutes)
+    days = {}
+    hours = collections.Counter()
+    hosts = collections.Counter()
+    hints_total = collections.Counter()
+    hint_events = collections.defaultdict(list)     # indice -> [heures]
+    sessions = []
+    for t, host in recs:
+        d = days.get(t.date())
+        if d is None:
+            d = days[t.date()] = {"first": t, "last": t, "count": 0, "night": 0, "hints": collections.Counter(), "sessions": 0}
+        d["last"] = t
+        d["count"] += 1
+        is_night = minute_in_ranges(t.hour * 60 + t.minute, [night])
+        if is_night:
+            d["night"] += 1
+        hours[t.hour] += 1
+        hosts[host] += 1
+        _, hint = host_hint(host)
+        if hint:
+            d["hints"][hint] += 1
+            hints_total[hint] += 1
+            hint_events[hint].append(t)
+        if not sessions or t - sessions[-1]["end"] > gap:
+            sessions.append({"start": t, "end": t, "count": 0, "hints": collections.Counter(), "night": False})
+            d["sessions"] += 1
+        sess = sessions[-1]
+        sess["end"] = t
+        sess["count"] += 1
+        if hint:
+            sess["hints"][hint] += 1
+        if is_night:
+            sess["night"] = True
+
+    notable = []
+    for hint, times in hint_events.items():
+        if hint in NOTABLE_HINTS:
+            notable.extend((t, hint) for t in times)
+    # rafales : au moins burst_min médias (ou photos de profil) en 10 minutes
+    for hint, label in ((HINT_MEDIA, "échange soutenu de médias"), (HINT_MEDIA_CDN, "réception soutenue de médias"),
+                        (HINT_PROFILE, "consultation de nombreux profils (contacts, groupes, nouveaux contacts ?)")):
+        times = hint_events.get(hint, [])
+        i = 0
+        while i < len(times):
+            j = i
+            while j + 1 < len(times) and times[j + 1] - times[i] <= dt.timedelta(minutes=10):
+                j += 1
+            if j - i + 1 >= burst_min:
+                notable.append((times[i], "%s : %d en %s" % (label, j - i + 1, fmt_duration(max(60, (times[j] - times[i]).total_seconds())))))
+                i = j + 1
+            else:
+                i += 1
+    for sess in sessions:
+        if sess["night"] and sess["count"] >= 3:
+            notable.append((sess["start"], "activité de nuit (%s, %d requêtes)"
+                            % (fmt_duration(max(60, (sess["end"] - sess["start"]).total_seconds())), sess["count"])))
+    notable.sort(key=lambda x: x[0])
+    subdomains = [(host, n, host_hint(host)[1] or "non documenté") for host, n in hosts.most_common()]
+    return {"app": app_name, "total": len(recs), "days": days, "hours": hours, "sessions": sessions, "hints": hints_total,
+            "notable": notable, "subdomains": subdomains, "gap_minutes": gap_minutes,
+            "active_seconds": sum(max(60, (x["end"] - x["start"]).total_seconds()) for x in sessions)}
+
+
+def _day_media(hints):
+    return hints.get(HINT_MEDIA, 0) + hints.get(HINT_MEDIA_CDN, 0)
+
+
+def render_app_detail_text(det):
+    out = []
+    out.append("DÉTAIL %s" % det["app"].upper())
+    out.append("=" * 78)
+    out.append("  %d requêtes DNS, %d jours d'utilisation, %d sessions, temps actif estimé %s, créneaux typiques : %s"
+               % (det["total"], len(det["days"]), len(det["sessions"]), fmt_duration(det["active_seconds"]),
+                  ", ".join(typical_slots(det["hours"])) or "-"))
+    if det["app"] == "WhatsApp":
+        out.append("  Lecture : une 'connexion au serveur de messagerie' apparaît quand l'appli s'ouvre ou se réveille (souvent")
+        out.append("  à la réception ou à l'envoi de messages en arrière-plan) ; les médias sont les photos, vidéos, vocaux,")
+        out.append("  documents et statuts. Les appels ne sont pas identifiables par le DNS. Tout reste indicatif.")
+    if det["hints"]:
+        out.append("")
+        out.append("  Nature de l'activité sur la période :")
+        for hint, n in det["hints"].most_common():
+            out.append("    %5d  %s" % (n, hint))
+    out.append("")
+    out.append("  PAR JOUR")
+    out.append("  %-14s %-8s %-8s %5s %5s %6s %6s %6s %6s" % ("date", "première", "dernière", "req.", "sess.", "connex", "médias", "profil", "nuit"))
+    for day in sorted(det["days"]):
+        d = det["days"][day]
+        out.append("  %s %s %-8s %-8s %5d %5d %6d %6d %6d %6d" % (
+            fmt_date(day), WEEKDAYS_FR[day.weekday()], d["first"].strftime("%H:%M"), d["last"].strftime("%H:%M"),
+            d["count"], d["sessions"], d["hints"].get(HINT_CONNECT, 0), _day_media(d["hints"]),
+            d["hints"].get(HINT_PROFILE, 0), d["night"]))
+    out.append("  (connex = connexions au serveur de messagerie ; nuit = requêtes entre 22h et 6h)")
+    out.append("")
+    out.append("  PAR HEURE")
+    mx = max(det["hours"].values()) or 1
+    for hr in range(24):
+        n = det["hours"].get(hr, 0)
+        if n:
+            out.append("    %02dh-%02dh %5d  %s" % (hr, (hr + 1) % 24, n, _bar(n, mx)))
+    out.append("")
+    out.append("  ÉVÉNEMENTS NOTABLES")
+    if not det["notable"]:
+        out.append("    aucun")
+    for t, label in det["notable"]:
+        out.append("    %s %s  %s" % (WEEKDAYS_FR[t.weekday()], fmt_dt(t), label))
+    out.append("")
+    out.append("  SESSIONS")
+    for sess in det["sessions"][-200:]:
+        h = ", ".join("%s x%d" % (k.split(" (")[0], v) for k, v in sess["hints"].most_common(3))
+        out.append("    %s %s -> %s  %6s %4d req.%s  %s" % (
+            WEEKDAYS_FR[sess["start"].weekday()], fmt_dt(sess["start"]), sess["end"].strftime("%H:%M"),
+            fmt_duration(max(60, (sess["end"] - sess["start"]).total_seconds())), sess["count"],
+            "  [nuit]" if sess["night"] else "", h))
+    if len(det["sessions"]) > 200:
+        out.append("    ... (%d sessions, voir le HTML)" % len(det["sessions"]))
+    out.append("")
+    out.append("  SOUS-DOMAINES VUS ET LEUR SIGNIFICATION")
+    for host, n, meaning in det["subdomains"]:
+        out.append("    %5d  %-40s %s" % (n, host[:40], meaning))
+    return "\n".join(out)
+
+
+def render_app_detail_html(det):
+    h = []
+    h.append("<h2>Détail %s</h2>" % _esc(det["app"]))
+    h.append("<div class='card'>%d requêtes DNS, %d jours d'utilisation, %d sessions, temps actif estimé %s, créneaux typiques : <b>%s</b>"
+             % (det["total"], len(det["days"]), len(det["sessions"]), _esc(fmt_duration(det["active_seconds"])),
+                _esc(", ".join(typical_slots(det["hours"])) or "-")))
+    if det["app"] == "WhatsApp":
+        h.append("<p><small>Une « connexion au serveur de messagerie » apparaît quand l'appli s'ouvre ou se réveille, souvent à la "
+                 "réception ou à l'envoi de messages en arrière-plan ; les médias sont les photos, vidéos, vocaux, documents et statuts. "
+                 "Les appels ne sont pas identifiables par le DNS. Tout reste indicatif.</small></p>")
+    if det["hints"]:
+        h.append("<ul>" + "".join("<li>%d &times; %s</li>" % (n, _esc(k)) for k, n in det["hints"].most_common()) + "</ul>")
+    h.append("</div>")
+    h.append("<h3>Par jour</h3><table><tr><th>Date</th><th>Première</th><th>Dernière</th><th class='num'>Requêtes</th><th class='num'>Sessions</th>"
+             "<th class='num'>Connexions messagerie</th><th class='num'>Médias</th><th class='num'>Photos de profil</th><th class='num'>Nuit (22h-6h)</th></tr>")
+    for day in sorted(det["days"]):
+        d = det["days"][day]
+        h.append("<tr><td>%s %s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td>"
+                 "<td class='num'>%d</td><td class='num'>%d</td><td class='num'>%s</td></tr>"
+                 % (_esc(fmt_date(day)), WEEKDAYS_FR[day.weekday()], d["first"].strftime("%H:%M"), d["last"].strftime("%H:%M"),
+                    d["count"], d["sessions"], d["hints"].get(HINT_CONNECT, 0), _day_media(d["hints"]),
+                    d["hints"].get(HINT_PROFILE, 0), ("<b>%d</b>" % d["night"]) if d["night"] else ""))
+    h.append("</table>")
+    mx = max(det["hours"].values()) or 1
+    h.append("<h3>Par heure</h3><table><tr><th>Heure</th><th class='num'>Requêtes</th><th></th></tr>")
+    for hr in range(24):
+        n = det["hours"].get(hr, 0)
+        h.append("<tr><td>%02dh-%02dh</td><td class='num'>%d</td><td><span class='bar' style='width:%dpx;background:#25d366'></span></td></tr>"
+                 % (hr, (hr + 1) % 24, n, int(300 * n / mx)))
+    h.append("</table>")
+    h.append("<h3>Événements notables</h3>")
+    if det["notable"]:
+        h.append("<table><tr><th>Quand</th><th>Événement</th></tr>" + "".join(
+            "<tr><td>%s %s</td><td>%s</td></tr>" % (WEEKDAYS_FR_LONG[t.weekday()], _esc(fmt_dt(t)), _esc(label))
+            for t, label in det["notable"]) + "</table>")
+    else:
+        h.append("<div class='card'>Aucun.</div>")
+    h.append("<h3>Sessions</h3><table><tr><th>Jour</th><th>Début</th><th>Fin</th><th>Durée</th><th class='num'>Requêtes</th><th>Nature</th></tr>")
+    for sess in det["sessions"]:
+        h.append("<tr><td>%s%s</td><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td><small>%s</small></td></tr>"
+                 % (WEEKDAYS_FR_LONG[sess["start"].weekday()], " <b>[nuit]</b>" if sess["night"] else "", _esc(fmt_dt(sess["start"])),
+                    _esc(sess["end"].strftime("%H:%M:%S")), _esc(fmt_duration(max(60, (sess["end"] - sess["start"]).total_seconds()))),
+                    sess["count"], _esc(", ".join("%s ×%d" % (k, v) for k, v in sess["hints"].most_common(3)))))
+    h.append("</table>")
+    h.append("<h3>Sous-domaines vus et leur signification</h3><table><tr><th class='num'>Requêtes</th><th>Sous-domaine</th><th>Signification</th></tr>")
+    for host, n, meaning in det["subdomains"]:
+        h.append("<tr><td class='num'>%d</td><td>%s</td><td>%s</td></tr>" % (n, _esc(host), _esc(meaning)))
+    h.append("</table>")
+    return "\n".join(h)
 
 
 def render_activity_text(act, filters):
@@ -1307,6 +1503,9 @@ def render_activity_text(act, filters):
         out.append("-" * 78)
         for dom, n, cat in act["other"]:
             out.append("  %-50s %6d  %s" % (dom[:50], n, ("!! " + CATEGORY_LABELS.get(cat, cat)) if cat else ""))
+    for det in act.get("details") or []:
+        out.append("")
+        out.append(render_app_detail_text(det))
     return "\n".join(out)
 
 
@@ -1354,6 +1553,8 @@ def render_activity_html(act, filters):
         for dom, n, cat in act["other"]:
             h.append("<tr><td>%s</td><td class='num'>%d</td><td>%s</td></tr>" % (_esc(dom), n, _cat_tag(cat) if cat else ""))
         h.append("</table>")
+    for det in act.get("details") or []:
+        h.append(render_app_detail_html(det))
     h.append("</div></body></html>")
     return "\n".join(h)
 
@@ -1788,6 +1989,7 @@ class Job(object):
         self.top_sites = 0          # >0 : lister les N sites les plus visités, toutes catégories
         self.keep_all_hosts = False
         self.activity = False       # commande "activite" : conserver toutes les requêtes du client
+        self.detail_apps = ["WhatsApp"]   # applis détaillées au maximum dans le rapport d'activité
 
 
 def build_filters(job):
@@ -1894,6 +2096,8 @@ def build_parser():
     outp.add_argument("--top", type=int, default=25, metavar="N", help="nombre de lignes dans les classements (défaut 25)")
     outp.add_argument("--tous-sites", type=int, default=0, metavar="N",
                       help="ajouter les N sites les plus visités par l'appareil, toutes catégories (pour repérer un site inconnu des listes)")
+    outp.add_argument("--appli", action="append", metavar="NOM",
+                      help="commande activite : appli à détailler au maximum (défaut WhatsApp ; répétable, ex : --appli Snapchat)")
     outp.add_argument("--ouvrir", action="store_true", help="ouvrir le rapport HTML dans le navigateur")
 
     p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "activite", "test-domaine", "gui"],
@@ -1947,6 +2151,13 @@ def job_from_args(args):
     job.gap_minutes = args.gap
     job.top = args.top
     job.top_sites = max(0, args.tous_sites)
+    if args.appli:
+        known = {a.lower(): a for a in APP_SIGNATURES}
+        job.detail_apps = []
+        for a in args.appli:
+            if a.lower() not in known:
+                raise ValueError("Appli inconnue : %s. Choix : %s" % (a, ", ".join(sorted(APP_SIGNATURES))))
+            job.detail_apps.append(known[a.lower()])
     return job
 
 
@@ -2015,6 +2226,10 @@ def main(argv=None):
 
     if args.commande == "activite":
         act = build_activity(analysis, job.gap_minutes)
+        for app in job.detail_apps:
+            det = build_app_detail(analysis, app, job.gap_minutes)
+            if det:
+                act["details"].append(det)
         print(render_activity_text(act, analysis.filters))
         if args.html:
             with open(args.html, "w", encoding="utf-8") as fh:

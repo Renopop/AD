@@ -142,6 +142,7 @@ Options principales (`--help` pour tout voir) :
 | `--gap MIN` | silence qui sépare deux sessions (défaut 10 min) |
 | `--tz Europe/Paris` ou `+02:00` | fuseau d'affichage (défaut : celui du PC) |
 | `--alias 192.168.1.42=iPhone-Ado` | nommer un appareil (ou fichier `listes/clients.txt`) |
+| `--appli NOM` | commande `activite` : appli détaillée au maximum (défaut WhatsApp, répétable) |
 | `--tous-sites N` | ajouter les N sites les plus visités par l'appareil, toutes catégories, pour repérer un site de rencontres inconnu des listes |
 | `--html`, `--csv`, `--detail`, `--ouvrir` | sorties |
 
@@ -160,6 +161,15 @@ Pour un appareil et une période, ce rapport (bouton « Détail d'activité (app
 avec les sessions (début, fin, durée), les heures typiques, l'activité par jour, et des indices tirés des
 sous-domaines (`mmg.whatsapp.net` = média photo/vidéo/vocal envoyé ou reçu, `pps.whatsapp.net` = photos de
 profil consultées, `sc-cdn.net` = snaps chargés...).
+
+Le rapport se termine par un **détail maximal de WhatsApp** (ou d'une autre appli avec `--appli Snapchat`, ou le
+menu « Appli à détailler » de l'interface) : nature de l'activité (connexions au serveur de messagerie,
+médias envoyés/reçus, médias reçus via le CDN, photos de profil consultées, ouverture de l'appli, stickers,
+télémétrie), tableau par jour avec première et dernière activité, connexions, médias, profils et requêtes de
+nuit, répartition par heure, **événements notables** (vérification ou enregistrement du numéro = installation,
+réinstallation ou changement d'appareil ; WhatsApp Web lié à un PC ; rafales de médias ; consultation de
+nombreux profils ; sessions de nuit), sessions détaillées, et la liste de tous les sous-domaines vus avec leur
+signification (les inconnus sont marqués « non documenté »).
 
 Limite à bien comprendre : le DNS ne voit ni le contenu des messages, ni le correspondant, ni le sens
 (envoyé / reçu), et ne distingue pas de façon fiable un tchat d'un appel. Les applis de messagerie gardent

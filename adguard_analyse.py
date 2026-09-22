@@ -513,6 +513,55 @@ def find_lists_directory(explicit=None):
     return None
 
 
+def load_mac_vendors(directory):
+    """listes/fabricants_mac.txt : 'XXXXXX Fabricant' (préfixes OUI de l'IEEE, format nmap)."""
+    table = {}
+    if not directory:
+        return table
+    p = os.path.join(directory, "fabricants_mac.txt")
+    if not os.path.isfile(p):
+        return table
+    with open(p, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if not line or line[0] == "#":
+                continue
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2 and len(parts[0]) == 6:
+                table[parts[0].upper()] = parts[1].strip()
+    return table
+
+
+def normalize_mac(mac):
+    return re.sub(r"[^0-9A-Fa-f]", "", mac or "").upper()
+
+
+def mac_vendor(mac, table):
+    """Fabricant d'après les 6 premiers caractères, ou 'adresse aléatoire' (bit local des téléphones récents)."""
+    m = normalize_mac(mac)
+    if len(m) < 6:
+        return ""
+    try:
+        first = int(m[:2], 16)
+    except ValueError:
+        return ""
+    if first & 0x02:
+        return "adresse aléatoire (téléphone/tablette récent)"
+    return table.get(m[:6], "fabricant inconnu")
+
+
+def load_leases_file(path):
+    """leases.json d'AdGuard Home (dossier data/) -> {ip: {mac, hostname, static}}."""
+    leases = {}
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        data = json.load(fh)
+    for l in data.get("leases") or []:
+        ip = l.get("ip")
+        if ip:
+            leases[ip] = {"mac": l.get("mac") or "", "hostname": l.get("hostname") or "",
+                          "static": bool(l.get("static")) or not l.get("expires"), "expires": l.get("expires") or ""}
+    return leases
+
+
 def load_client_aliases(directory, extra=None):
     aliases = {}
     if directory:
@@ -675,6 +724,21 @@ class AdGuardAPI(object):
                 aliases[ip.lower()] = name
         return aliases
 
+    def dhcp_leases(self):
+        """Baux DHCP d'AdGuard Home (si son serveur DHCP est actif) -> {ip: {mac, hostname, static}}."""
+        leases = {}
+        try:
+            data = self.get_json("/control/dhcp/status")
+        except Exception:
+            return leases
+        for key, static in (("leases", False), ("static_leases", True)):
+            for l in data.get(key) or []:
+                ip = l.get("ip")
+                if ip:
+                    leases[ip] = {"mac": l.get("mac") or "", "hostname": l.get("hostname") or "",
+                                  "static": static, "expires": l.get("expires") or ""}
+        return leases
+
     def iter_querylog(self, since=None, search=None, limit=500, progress=None):
         """Parcourt le journal du plus récent au plus ancien jusqu'à la date 'since'."""
         older_than = None
@@ -813,6 +877,8 @@ class Analysis(object):
         self.filters = filters
         self.classifier = classifier
         self.aliases = aliases or {}
+        self.leases = {}            # ip -> {mac, hostname, static}
+        self.mac_vendors = {}
         self.records = []
         self.clients = {}
         self.total_scanned = 0
@@ -832,7 +898,17 @@ class Analysis(object):
         alias = self.aliases.get((e.client or "").lower())
         if alias:
             names.append(alias)
+        lease = self.leases.get(e.client)
+        if lease and lease.get("hostname"):
+            names.append(lease["hostname"])
         return names
+
+    def lease_info(self, ip):
+        """(mac, fabricant, nom DHCP, statique) pour une IP, ou ('', '', '', False)."""
+        lease = self.leases.get(ip)
+        if not lease:
+            return "", "", "", False
+        return lease.get("mac", ""), mac_vendor(lease.get("mac", ""), self.mac_vendors), lease.get("hostname", ""), lease.get("static", False)
 
     def display_name(self, ip, names):
         names = [n for n in names if n]
@@ -1093,16 +1169,24 @@ def render_clients_text(analysis, top_apps=6):
     if not clients:
         out.append("Aucun client.")
         return "\n".join(out)
+    n_random = 0
     for cs in clients:
         names = list(cs.names)
         alias = analysis.aliases.get(cs.ip.lower())
         if alias:
             names.insert(0, alias)
+        mac, vendor, dhcp_name, static = analysis.lease_info(cs.ip)
+        if dhcp_name:
+            names.append(dhcp_name)
         label = cs.ip
         if names:
             label += "  (" + ", ".join(sorted(set(names))) + ")"
         out.append("")
         out.append(label)
+        if mac:
+            out.append("  MAC : %s  |  fabricant : %s  |  bail %s" % (mac, vendor or "?", "statique" if static else "dynamique"))
+            if vendor.startswith("adresse aléatoire"):
+                n_random += 1
         out.append("  Type probable : %s" % cs.guess())
         out.append("  Requêtes : %d   |  jours actifs : %d   |  du %s au %s"
                    % (cs.count, len(cs.days), fmt_dt(cs.first) if cs.first else "-", fmt_dt(cs.last) if cs.last else "-"))
@@ -1119,7 +1203,22 @@ def render_clients_text(analysis, top_apps=6):
             out.append("  !! iCloud Private Relay actif : une partie du trafic Safari échappe à AdGuard.")
         peak = max(range(24), key=lambda h: cs.hours[h])
         out.append("  Heure la plus active : %02dh" % peak)
+    silent = [(ip, l) for ip, l in analysis.leases.items() if ip not in analysis.clients]
+    if silent:
+        out.append("")
+        out.append("APPAREILS AVEC UN BAIL DHCP MAIS AUCUNE REQUÊTE DNS DANS LA PÉRIODE (%d)" % len(silent))
+        out.append("  (éteints, ou qui utilisent un autre serveur DNS : à vérifier)")
+        for ip, l in sorted(silent, key=lambda x: [int(p) if p.isdigit() else p for p in x[0].split(".")]):
+            out.append("  %-16s %-18s %-40s %s%s" % (ip, l.get("mac", ""), mac_vendor(l.get("mac", ""), analysis.mac_vendors)[:40],
+                                                      l.get("hostname") or "-", "  [statique]" if l.get("static") else ""))
     out.append("")
+    if analysis.leases:
+        out.append("MAC : %d appareil(s) avec adresse aléatoire (téléphones/tablettes récents : le fabricant est masqué,"
+                   " c'est normal)." % n_random)
+        out.append("Un intrus se repère à un nom d'hôte inconnu, un fabricant inattendu, ou des horaires d'activité qui")
+        out.append("ne correspondent à personne dans la maison. Seul un nouveau mot de passe Wi-Fi l'exclut durablement.")
+    else:
+        out.append("MAC et fabricants indisponibles : le serveur DHCP d'AdGuard n'est pas actif, ou indiquez --baux leases.json.")
     out.append("Astuce : un iPhone se reconnaît aux indices 'ios' (time-ios.apple.com...) et aux applis")
     out.append("(Snapchat, TikTok...). Notez son adresse IP puis utilisez : --client <IP>")
     return "\n".join(out)
@@ -1437,6 +1536,7 @@ class Job(object):
         self.api_password = None
         self.api_insecure = False
         self.log_paths = []
+        self.leases_path = None     # leases.json copié depuis le NAS (mode fichier)
         self.lists_dir = None
         self.aliases = []
         self.clients = []
@@ -1476,12 +1576,20 @@ def run_analysis(job, progress=None, for_clients=False):
     filters = build_filters(job)
     aliases = load_client_aliases(lists_dir, job.aliases)
     analysis = Analysis(filters, classifier, aliases, keep_all_hosts=job.keep_all_hosts or job.top_sites > 0)
+    analysis.mac_vendors = load_mac_vendors(lists_dir)
+    if job.leases_path:
+        analysis.leases = load_leases_file(job.leases_path)
+        progress("%d baux DHCP lus dans %s" % (len(analysis.leases), job.leases_path))
 
     if job.api_url:
         api = AdGuardAPI(job.api_url, job.api_user, job.api_password, job.api_insecure)
         st = api.status()
         progress("Connecté à AdGuard Home %s" % st.get("version", ""))
         aliases.update({k: v for k, v in api.clients().items() if k not in aliases})
+        if not analysis.leases:
+            analysis.leases = api.dhcp_leases()
+            progress("%d baux DHCP récupérés (serveur DHCP d'AdGuard)" % len(analysis.leases)
+                     if analysis.leases else "Pas de baux DHCP : le serveur DHCP d'AdGuard n'est pas actif (MAC indisponibles)")
         search = None
         if not for_clients and len(job.clients) == 1 and re.match(r"^[0-9a-f.:]+$", job.clients[0], re.I):
             search = job.clients[0]
@@ -1520,6 +1628,7 @@ def build_parser():
     src.add_argument("--password", help="mot de passe AdGuard Home")
     src.add_argument("--insecure", action="store_true", help="ne pas vérifier le certificat HTTPS")
     src.add_argument("--log", nargs="+", metavar="FICHIER", help="fichier(s) querylog.json (ou dossier les contenant)")
+    src.add_argument("--baux", metavar="FICHIER", help="leases.json d'AdGuard (dossier data/) pour les adresses MAC en mode fichier")
     src.add_argument("--listes", metavar="DOSSIER", help="dossier des listes de domaines (défaut : ./listes)")
     src.add_argument("--alias", action="append", metavar="IP=NOM", help="nommer un appareil, ex : 192.168.1.42=iPhone-Ado")
 
@@ -1560,6 +1669,7 @@ def job_from_args(args):
     job.api_password = args.password
     job.api_insecure = args.insecure
     job.log_paths = args.log or []
+    job.leases_path = args.baux
     job.lists_dir = args.listes
     job.aliases = args.alias or []
     job.clients = args.client or []

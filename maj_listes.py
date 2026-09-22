@@ -30,6 +30,10 @@ SOURCES = [
     ("porno_stevenblack.txt", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts", None),
     ("porno_blocklistproject.txt", "https://blocklistproject.github.io/Lists/porn.txt", None),
 ]
+# écrit directement dans listes/ (pas une catégorie) : préfixes MAC des fabricants (données IEEE, format nmap)
+SOURCES_AUTRES = [
+    ("fabricants_mac.txt", "https://raw.githubusercontent.com/nmap/nmap/master/nmap-mac-prefixes", None),
+]
 SOURCES_COMPLET = [
     ("rencontres_ut1_direct.txt", "https://dsi.ut-capitole.fr/blacklists/download/dating.tar.gz", "dating/domains"),
     ("porno_ut1_adult.txt", "https://dsi.ut-capitole.fr/blacklists/download/adult.tar.gz", "adult/domains"),
@@ -57,10 +61,10 @@ def main():
     base = os.path.dirname(os.path.abspath(sys.argv[0]))
     out_dir = os.path.join(base, "listes", "externes")
     os.makedirs(out_dir, exist_ok=True)
-    sources = SOURCES + (SOURCES_COMPLET if args.complet else [])
+    sources = SOURCES + (SOURCES_COMPLET if args.complet else []) + SOURCES_AUTRES
     ok = 0
     for name, url, member in sources:
-        dest = os.path.join(out_dir, name)
+        dest = os.path.join(out_dir if (name, url, member) not in SOURCES_AUTRES else os.path.dirname(out_dir), name)
         print("Téléchargement de %s ..." % url)
         try:
             data = download(url)

@@ -132,6 +132,7 @@ Options principales (`--help` pour tout voir) :
 |---|---|
 | `--api URL --user U --password P` | lecture par l'API d'AdGuard Home |
 | `--log FICHIER...` | lecture de `querylog.json` (fichiers ou dossier ; `.gz` accepté) |
+| `--baux leases.json` | baux DHCP copiés du NAS, pour les adresses MAC en mode fichier |
 | `--client IP\|NOM` | appareil ciblé : IP exacte, `192.168.1.*`, ou partie du nom (`iphone`). Répétable |
 | `--du`, `--au`, `--jour`, `--jours N` | période (dates `JJ/MM/AAAA` ou `AAAA-MM-JJ`, incluses) |
 | `--heures "22h-6h, 12h-14h"`, `--nuit` | plages horaires (traversent minuit si besoin) |
@@ -168,6 +169,15 @@ puis utilisez `--client iPhone-Ado`.
 Note : iOS utilise une « adresse Wi-Fi privée » (MAC aléatoire) mais elle est stable pour un même réseau
 Wi-Fi, donc le bail statique fonctionne.
 
+Si AdGuard Home est aussi le **serveur DHCP** de la maison, la commande `clients` affiche en plus, pour chaque
+appareil, son **adresse MAC**, son **fabricant** (Apple, Samsung, HP...), son nom DHCP et le type de bail, puis la
+liste des appareils qui ont un bail mais n'ont fait **aucune requête DNS** (éteints, ou utilisant un autre DNS :
+typique d'un intrus). En mode fichier, copiez aussi `leases.json` (dossier `data/`) et passez `--baux leases.json`.
+Les téléphones et tablettes récents utilisent une adresse MAC aléatoire par réseau : le fabricant est alors
+masqué, ce que l'outil signale ; c'est normal et ne désigne pas un intrus. Un intrus se repère à un nom
+inconnu, un fabricant inattendu ou des horaires d'activité qui ne correspondent à personne ; seul un nouveau
+mot de passe Wi-Fi (WPA2/WPA3, WPS désactivé) l'exclut durablement.
+
 ---
 
 ## 6. Personnaliser la détection (dossier `listes/`)
@@ -178,6 +188,7 @@ Wi-Fi, donc le bail statique fonctionne.
 | `motscles_*.txt` | mots-clés cherchés dans chaque partie du nom (`porn`, `^sex` = commence par, `sex$` = finit par, `=adult` = exactement) |
 | `exclusions.txt` | faux positifs à ignorer : domaines (`adultswim.com`) ou mots (`essex`) |
 | `clients.txt` | `IP  nom` pour nommer les appareils |
+| `fabricants_mac.txt` | préfixes MAC des fabricants (données IEEE au format nmap, rafraîchi par `maj_listes.py`) |
 | `externes/` | listes téléchargées par `maj_listes.py` (préfixe `porno_`, `rencontres_`...) ; les listes intégrées restent prioritaires |
 
 L'outil utilise aussi les décisions d'AdGuard : une requête bloquée par le **contrôle parental** est classée

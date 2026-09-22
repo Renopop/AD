@@ -218,6 +218,10 @@ class FakeAdGuard(http.server.BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(url.query)
         if url.path == "/control/status":
             return self._send(200, {"version": "v0.107.0-test"})
+        if url.path == "/control/dhcp/status":
+            return self._send(200, {"enabled": True,
+                                    "leases": [{"mac": "da:3b:6c:11:22:33", "ip": "192.168.1.42", "hostname": "iPhone-de-Theo", "expires": "2026-09-22T10:00:00Z"}],
+                                    "static_leases": [{"mac": "00:1e:0b:01:02:03", "ip": "192.168.1.5", "hostname": "imprimante"}]})
         if url.path == "/control/clients":
             return self._send(200, {"clients": [{"name": "iPhone-Ado", "ids": ["192.168.1.42"]}], "auto_clients": []})
         if url.path == "/control/querylog":
@@ -370,3 +374,38 @@ class TestRencontresAdos(unittest.TestCase):
         self.assertEqual(c.classify("www.cougarlife.com")[0], "rencontres")
         for host in ("www.ado.fr", "les-ados-de-lyon.fr", "www.teenvogue.com", "www.canteen.fr"):
             self.assertIsNone(c.classify(host)[0], host)
+
+
+class TestMAC(unittest.TestCase):
+    def test_fabricant(self):
+        table = core.load_mac_vendors(os.path.join(ROOT, "listes"))
+        self.assertGreater(len(table), 30000)
+        self.assertEqual(core.mac_vendor("00:1e:0b:01:02:03", table), "Hewlett Packard")
+        self.assertTrue(core.mac_vendor("da:3b:6c:11:22:33", table).startswith("adresse aléatoire"))
+        self.assertEqual(core.mac_vendor("00:00:00:00:00:00", table), "Xerox")
+        self.assertEqual(core.mac_vendor("", table), "")
+
+    def test_baux_fichier_et_rapport_clients(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 9, 1, 12, 0, tzinfo=PARIS)
+        es = [entry(base, "time-ios.apple.com", "192.168.1.42"), entry(base, "www.google.com", "192.168.1.20")]
+        a = core.Analysis(core.Filters(), c)
+        a.mac_vendors = core.load_mac_vendors(os.path.join(ROOT, "listes"))
+        a.leases = core.load_leases_file(os.environ["LEASES_TEST"])
+        a.feed(es)
+        self.assertEqual(len(a.leases), 5)
+        self.assertTrue(a.leases["192.168.1.5"]["static"])
+        txt = core.render_clients_text(a)
+        self.assertIn("da:3b:6c:11:22:33", txt)
+        self.assertIn("iPhone-de-Theo", txt)
+        self.assertIn("AUCUNE REQUÊTE DNS", txt)
+        self.assertIn("192.168.1.77", txt)
+        self.assertIn("imprimante", txt)
+
+    def test_baux_api(self):
+        TestAPI.setUpClass()
+        self.addCleanup(TestAPI.tearDownClass)
+        api = core.AdGuardAPI(TestAPI.url, "admin", "secret")
+        leases = api.dhcp_leases()
+        self.assertEqual(leases["192.168.1.42"]["mac"], "da:3b:6c:11:22:33")
+        self.assertTrue(leases["192.168.1.5"]["static"])

@@ -75,7 +75,12 @@ class App(object):
         ttk.Entry(src, textvariable=self.files, width=40).grid(row=1, column=3, sticky="we")
         ttk.Button(src, text="Parcourir...", command=self._browse).grid(row=1, column=4)
         ttk.Label(src, text="(querylog.json et querylog.json.1 : plusieurs fichiers séparés par ;)").grid(row=2, column=3, sticky="w")
-        ttk.Button(src, text="Tester / lister les appareils", command=self.list_clients).grid(row=3, column=3, sticky="w")
+        ttk.Label(src, text="Baux DHCP :").grid(row=3, column=2, sticky="e")
+        self.leases = tk.StringVar()
+        ttk.Entry(src, textvariable=self.leases, width=40).grid(row=3, column=3, sticky="we")
+        ttk.Button(src, text="Parcourir...", command=self._browse_leases).grid(row=3, column=4)
+        ttk.Label(src, text="(facultatif, mode fichier : leases.json du dossier data/ pour les adresses MAC)").grid(row=4, column=3, sticky="w")
+        ttk.Button(src, text="Tester / lister les appareils", command=self.list_clients).grid(row=5, column=3, sticky="w")
         src.columnconfigure(1, weight=1)
         src.columnconfigure(3, weight=2)
 
@@ -165,6 +170,11 @@ class App(object):
             self.files.set(";".join(paths))
             self.source.set("file")
 
+    def _browse_leases(self):
+        path = filedialog.askopenfilename(title="Choisir leases.json", filetypes=[("Baux AdGuard", "leases.json"), ("Tous", "*.*")])
+        if path:
+            self.leases.set(path)
+
     def _quick_days(self, n):
         today = dt.date.today()
         self.date_from.set((today - dt.timedelta(days=n - 1)).strftime("%d/%m/%Y"))
@@ -203,7 +213,7 @@ class App(object):
     def _save_config(self):
         cfg = {
             "source": self.source.get(), "url": self.url.get(), "user": self.user.get(),
-            "files": self.files.get(), "client": self.client.get(), "hours": self.hours.get(),
+            "files": self.files.get(), "leases": self.leases.get(), "client": self.client.get(), "hours": self.hours.get(),
             "days": [v.get() for v in self.day_vars],
             "categories": {c: v.get() for c, v in self.cat_vars.items()},
             "threshold": self.threshold.get(), "gap": self.gap.get(), "open_html": self.open_html.get(),
@@ -234,6 +244,7 @@ class App(object):
         self.password.set(cfg.get("password", ""))
         self.remember_pw.set(bool(cfg.get("remember_pw")))
         self.files.set(cfg.get("files", ""))
+        self.leases.set(cfg.get("leases", ""))
         self.client.set(cfg.get("client", ""))
         self.hours.set(cfg.get("hours", ""))
         for v, val in zip(self.day_vars, cfg.get("days", [True] * 7)):
@@ -259,6 +270,8 @@ class App(object):
             if not paths:
                 raise ValueError("Choisissez au moins un fichier querylog.json.")
             job.log_paths = paths
+            if self.leases.get().strip():
+                job.leases_path = self.leases.get().strip()
         if not for_clients:
             raw = self.client.get()
             # valeur choisie dans la liste : "192.168.1.42   (iPhone)   - iPhone/iPad" -> garder l'IP
@@ -356,8 +369,11 @@ class App(object):
                     self._log(core.render_clients_text(payload))
                     values = []
                     for cs in sorted(payload.clients.values(), key=lambda c: -c.count):
-                        names = sorted(set(list(cs.names) + ([payload.aliases[cs.ip.lower()]] if cs.ip.lower() in payload.aliases else [])))
-                        values.append(cs.ip + ("   (%s)" % ", ".join(names) if names else "") + "   - " + cs.guess())
+                        mac, vendor, dhcp_name, _ = payload.lease_info(cs.ip)
+                        names = sorted(set(list(cs.names) + ([payload.aliases[cs.ip.lower()]] if cs.ip.lower() in payload.aliases else [])
+                                           + ([dhcp_name] if dhcp_name else [])))
+                        values.append(cs.ip + ("   (%s)" % ", ".join(names) if names else "") + "   - " + cs.guess()
+                                      + ("   - %s %s" % (mac, vendor) if mac else ""))
                     self.client_box["values"] = values
                     self.status.set("%d appareil(s) trouvé(s). Choisissez-en un dans la liste puis générez le rapport." % len(values))
                 elif kind == "report":

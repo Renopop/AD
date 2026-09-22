@@ -395,7 +395,10 @@ class TestMAC(unittest.TestCase):
         a.feed(es)
         self.assertEqual(len(a.leases), 5)
         self.assertTrue(a.leases["192.168.1.5"]["static"])
-        txt = core.render_clients_text(a)
+        a.leases["fe80::1c2b:3d4e:5f60:7a8b"] = {"mac": "00:16:32:aa:bb:cc", "hostname": "tv-ipv6", "static": False}
+        a.leases["abc-client-id"] = {"mac": "", "hostname": "", "static": False}
+        txt = core.render_clients_text(a)   # IPv4, IPv6 et identifiant mélangés : ne doit pas planter
+        self.assertIn("tv-ipv6", txt)
         self.assertIn("da:3b:6c:11:22:33", txt)
         self.assertIn("iPhone-de-Theo", txt)
         self.assertIn("AUCUNE REQUÊTE DNS", txt)

@@ -26,6 +26,7 @@ import datetime as dt
 import gzip
 import html
 import io
+import ipaddress
 import json
 import os
 import re
@@ -306,6 +307,15 @@ def fmt_duration(seconds):
 # ---------------------------------------------------------------------------
 # Domaines
 # ---------------------------------------------------------------------------
+
+def ip_sort_key(ip):
+    """Clé de tri sûre pour IPv4, IPv6 et identifiants clients (jamais de comparaison int/str)."""
+    try:
+        a = ipaddress.ip_address(ip)
+        return (a.version, int(a), "")
+    except ValueError:
+        return (9, 0, str(ip))
+
 
 def normalize_host(host):
     return (host or "").strip().strip(".").lower()
@@ -1208,7 +1218,7 @@ def render_clients_text(analysis, top_apps=6):
         out.append("")
         out.append("APPAREILS AVEC UN BAIL DHCP MAIS AUCUNE REQUÊTE DNS DANS LA PÉRIODE (%d)" % len(silent))
         out.append("  (éteints, ou qui utilisent un autre serveur DNS : à vérifier)")
-        for ip, l in sorted(silent, key=lambda x: [int(p) if p.isdigit() else p for p in x[0].split(".")]):
+        for ip, l in sorted(silent, key=lambda x: ip_sort_key(x[0])):
             out.append("  %-16s %-18s %-40s %s%s" % (ip, l.get("mac", ""), mac_vendor(l.get("mac", ""), analysis.mac_vendors)[:40],
                                                       l.get("hostname") or "-", "  [statique]" if l.get("static") else ""))
     out.append("")

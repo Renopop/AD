@@ -1249,7 +1249,8 @@ def build_activity(analysis, gap_minutes=10, top_other=30):
         for x in a["sessions"]:
             timeline.append((x["start"], x["end"], a["app"], x["count"], x["hints"]))
     timeline.sort(key=lambda x: x[0])
-    return {"apps": ordered, "other": other.most_common(top_other), "day_app": day_app, "timeline": timeline,
+    other_rows = [(dom, n, analysis.classifier.classify(dom)[0]) for dom, n in other.most_common(top_other)]
+    return {"apps": ordered, "other": other_rows, "day_app": day_app, "timeline": timeline,
             "total": len(recs), "gap_minutes": gap_minutes,
             "client": (analysis.filters.clients[0] if analysis.filters.clients else "?"),
             "first": recs[0][0] if recs else None, "last": recs[-1][0] if recs else None}
@@ -1275,9 +1276,9 @@ def render_activity_text(act, filters):
     out.append("")
     out.append("APPLICATIONS UTILISÉES")
     out.append("-" * 78)
-    out.append("  %-22s %6s %5s %8s %10s  %s" % ("application", "req.", "jours", "sessions", "temps actif", "heures typiques"))
+    out.append("  %-34s %6s %5s %8s %10s  %s" % ("application", "req.", "jours", "sessions", "temps actif", "heures typiques"))
     for a in act["apps"]:
-        out.append("  %-22s %6d %5d %8d %10s  %s" % (a["app"][:22], a["count"], len(a["days"]), len(a["sessions"]),
+        out.append("  %-34s %6d %5d %8d %10s  %s" % (a["app"][:34], a["count"], len(a["days"]), len(a["sessions"]),
                                                     fmt_duration(a["active_seconds"]), ", ".join(typical_slots(a["hours"])) or "-"))
     for a in act["apps"]:
         if a["app"] == "(autres sites)" or not a["hints"]:
@@ -1304,8 +1305,8 @@ def render_activity_text(act, filters):
         out.append("")
         out.append("AUTRES SITES LES PLUS DEMANDÉS (hors applis reconnues)")
         out.append("-" * 78)
-        for dom, n in act["other"]:
-            out.append("  %-50s %6d" % (dom[:50], n))
+        for dom, n, cat in act["other"]:
+            out.append("  %-50s %6d  %s" % (dom[:50], n, ("!! " + CATEGORY_LABELS.get(cat, cat)) if cat else ""))
     return "\n".join(out)
 
 
@@ -1349,9 +1350,9 @@ def render_activity_html(act, filters):
                     _esc(", ".join("%s ×%d" % (k, v) for k, v in hints.most_common(3)))))
     h.append("</table>")
     if act["other"]:
-        h.append("<h2>Autres sites les plus demandés</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th></tr>")
-        for dom, n in act["other"]:
-            h.append("<tr><td>%s</td><td class='num'>%d</td></tr>" % (_esc(dom), n))
+        h.append("<h2>Autres sites les plus demandés</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th><th>Catégorie</th></tr>")
+        for dom, n, cat in act["other"]:
+            h.append("<tr><td>%s</td><td class='num'>%d</td><td>%s</td></tr>" % (_esc(dom), n, _cat_tag(cat) if cat else ""))
         h.append("</table>")
     h.append("</div></body></html>")
     return "\n".join(h)

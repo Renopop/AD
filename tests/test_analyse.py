@@ -437,7 +437,7 @@ class TestActivite(unittest.TestCase):
         self.assertEqual(wa["count"], 4)
         self.assertEqual(len(wa["sessions"]), 2)
         self.assertEqual(wa["hints"]["média envoyé ou reçu (photo, vidéo, vocal, document)"], 2)
-        self.assertEqual(act["other"][0], ("lemonde.fr", 1))
+        self.assertEqual(act["other"][0], ("lemonde.fr", 1, None))
         txt = core.render_activity_text(act, a.filters)
         self.assertIn("WhatsApp", txt)
         html_out = core.render_activity_html(act, a.filters)

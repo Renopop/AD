@@ -140,7 +140,46 @@ APP_SIGNATURES = {
     "Reddit": ["reddit.com", "redd.it", "redditmedia.com", "redditstatic.com"],
     "Amazon": ["amazon.fr", "amazon.com", "amazonaws.com"],
     "Google": ["google.com", "googleapis.com", "gstatic.com", "google.fr"],
+    "Apple / iCloud (système)": ["apple.com", "icloud.com", "icloud-content.com", "apple-dns.net", "mzstatic.com",
+                                 "aaplimg.com", "cdn-apple.com", "apple-cloudkit.com"],
+    "Microsoft (système)": ["microsoft.com", "msftconnecttest.com", "windowsupdate.com", "live.com", "office.com"],
 }
+
+
+# Indices (indicatifs) sur la nature de l'activité d'après le sous-domaine demandé
+HOST_HINTS = [
+    (re.compile(r"^mmg(-fna)?\.whatsapp\.net$"), "WhatsApp", "média envoyé ou reçu (photo, vidéo, vocal, document)"),
+    (re.compile(r"^media-.*\.cdn\.whatsapp\.net$"), "WhatsApp", "média téléchargé"),
+    (re.compile(r"^pps\.whatsapp\.net$"), "WhatsApp", "photos de profil consultées"),
+    (re.compile(r"^(e\d+|g)\.whatsapp\.net$"), "WhatsApp", "connexion à la messagerie"),
+    (re.compile(r"^static\.whatsapp\.net$"), "WhatsApp", "ouverture de l'appli"),
+    (re.compile(r"^(app|gcp\.api|api)\.snapchat\.com$"), "Snapchat", "appli active (messages, stories)"),
+    (re.compile(r".*\.sc-cdn\.net$"), "Snapchat", "snaps / stories chargés"),
+    (re.compile(r"^i\.instagram\.com$"), "Instagram", "appli active (fil, messages)"),
+    (re.compile(r"^scontent.*\.cdninstagram\.com$"), "Instagram", "photos / vidéos chargées"),
+    (re.compile(r"^v\d+.*\.tiktokcdn.*$|^v\d+-.*\.tiktokv.*$"), "TikTok", "vidéos regardées"),
+    (re.compile(r"^api\d+.*\.tiktokv.*$"), "TikTok", "appli active"),
+    (re.compile(r"^gateway\.discord\.gg$"), "Discord", "connexion au tchat"),
+    (re.compile(r"^(cdn\.discordapp\.com|media\.discordapp\.net)$"), "Discord", "images / fichiers échangés"),
+    (re.compile(r".*\.discord\.media$"), "Discord", "appel vocal / vidéo"),
+    (re.compile(r".*\.googlevideo\.com$"), "YouTube", "vidéos regardées"),
+]
+
+
+def host_hint(host):
+    for rx, app, text in HOST_HINTS:
+        if rx.match(host):
+            return app, text
+    return None, None
+
+
+def app_of_host(host):
+    suffixes = set(host_suffixes(host))
+    for app, sigs in APP_SIGNATURES.items():
+        for sg in sigs:
+            if sg in suffixes:
+                return app
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -883,8 +922,9 @@ class ClientStats(object):
 
 
 class Analysis(object):
-    def __init__(self, filters, classifier, aliases=None, keep_all_hosts=False):
+    def __init__(self, filters, classifier, aliases=None, keep_all_hosts=False, keep_all_records=False):
         self.filters = filters
+        self.all_records = [] if keep_all_records else None   # (heure locale, hôte) du client sélectionné
         self.classifier = classifier
         self.aliases = aliases or {}
         self.leases = {}            # ip -> {mac, hostname, static}
@@ -958,6 +998,8 @@ class Analysis(object):
             self.selected_heatmap[local.weekday()][local.hour] += 1
             if self.selected_hosts is not None:
                 self.selected_hosts[base_domain(e.host)] += 1
+            if self.all_records is not None:
+                self.all_records.append((local, e.host))
             if category is None:
                 continue
             self.records.append(Record(e, local, self.display_name(e.client, names), category, source, detail))
@@ -1139,6 +1181,159 @@ def build_report(analysis, threshold_days=3, gap_minutes=10, top=25, top_sites=0
         "top": top,
         "lists": analysis.classifier.sources,
     }
+
+
+def build_activity(analysis, gap_minutes=10, top_other=30):
+    """Chronologie d'usage par application pour le client sélectionné (toutes requêtes DNS)."""
+    recs = sorted(analysis.all_records or [], key=lambda r: r[0])
+    gap = dt.timedelta(minutes=gap_minutes)
+    apps = {}
+    other = collections.Counter()
+    day_app = collections.defaultdict(collections.Counter)
+    for t, host in recs:
+        app = app_of_host(host)
+        if app is None:
+            other[base_domain(host)] += 1
+            app = "(autres sites)"
+        a = apps.get(app)
+        if a is None:
+            a = apps[app] = {"app": app, "count": 0, "days": set(), "hours": collections.Counter(),
+                             "hosts": collections.Counter(), "hints": collections.Counter(), "sessions": [],
+                             "first": t, "last": t}
+        a["count"] += 1
+        a["days"].add(t.date())
+        a["hours"][t.hour] += 1
+        a["hosts"][host] += 1
+        hint_app, hint = host_hint(host)
+        if hint:
+            a["hints"][hint] += 1
+        a["last"] = t
+        if not a["sessions"] or t - a["sessions"][-1]["end"] > gap:
+            a["sessions"].append({"start": t, "end": t, "count": 0, "hints": collections.Counter()})
+        sess = a["sessions"][-1]
+        sess["end"] = t
+        sess["count"] += 1
+        if hint:
+            sess["hints"][hint] += 1
+        day_app[t.date()][app] += 1
+    for a in apps.values():
+        a["active_seconds"] = sum(max(60, (x["end"] - x["start"]).total_seconds()) for x in a["sessions"])
+    ordered = sorted(apps.values(), key=lambda a: (a["app"] == "(autres sites)", -a["count"]))
+    timeline = []
+    for a in ordered:
+        for x in a["sessions"]:
+            timeline.append((x["start"], x["end"], a["app"], x["count"], x["hints"]))
+    timeline.sort(key=lambda x: x[0])
+    return {"apps": ordered, "other": other.most_common(top_other), "day_app": day_app, "timeline": timeline,
+            "total": len(recs), "gap_minutes": gap_minutes,
+            "client": (analysis.filters.clients[0] if analysis.filters.clients else "?"),
+            "first": recs[0][0] if recs else None, "last": recs[-1][0] if recs else None}
+
+
+def render_activity_text(act, filters):
+    out = []
+    out.append("DÉTAIL D'ACTIVITÉ PAR APPLICATION - appareil %s" % act["client"])
+    out.append("=" * 78)
+    for p in describe_filters(filters)[:-1]:
+        out.append("  - " + p)
+    out.append("  - %d requêtes DNS ; sessions séparées par %d min de silence" % (act["total"], act["gap_minutes"]))
+    out.append("")
+    out.append("Rappel : le DNS montre QUAND une appli est utilisée, jamais le contenu, le correspondant ni le sens")
+    out.append("(envoyé/reçu). Les indices entre parenthèses sont déduits des sous-domaines et restent indicatifs.")
+    if not act["apps"]:
+        out.append("")
+        out.append("Aucune requête pour cet appareil sur la période.")
+        return "\n".join(out)
+    out.append("")
+    out.append("APPLICATIONS UTILISÉES")
+    out.append("-" * 78)
+    out.append("  %-22s %6s %5s %8s %10s  %s" % ("application", "req.", "jours", "sessions", "temps actif", "heures typiques"))
+    for a in act["apps"]:
+        out.append("  %-22s %6d %5d %8d %10s  %s" % (a["app"][:22], a["count"], len(a["days"]), len(a["sessions"]),
+                                                    fmt_duration(a["active_seconds"]), ", ".join(typical_slots(a["hours"])) or "-"))
+    for a in act["apps"]:
+        if a["app"] == "(autres sites)" or not a["hints"]:
+            continue
+        out.append("  %s : %s" % (a["app"], ", ".join("%s x%d" % (h, n) for h, n in a["hints"].most_common(4))))
+    out.append("")
+    out.append("ACTIVITÉ PAR JOUR (requêtes par application)")
+    out.append("-" * 78)
+    for day in sorted(act["day_app"]):
+        c = act["day_app"][day]
+        out.append("  %s %s  %s" % (fmt_date(day), WEEKDAYS_FR[day.weekday()],
+                                     ", ".join("%s=%d" % (a, n) for a, n in c.most_common(8))))
+    out.append("")
+    out.append("CHRONOLOGIE DES SESSIONS")
+    out.append("-" * 78)
+    for start, end, app, n, hints in act["timeline"][-300:]:
+        dur = fmt_duration(max(60, (end - start).total_seconds()))
+        h = ("  (%s)" % ", ".join("%s x%d" % (k, v) for k, v in hints.most_common(2))) if hints else ""
+        out.append("  %s %s -> %s  %-18s %4d req. %6s%s" % (WEEKDAYS_FR[start.weekday()], fmt_dt(start),
+                                                             end.strftime("%H:%M"), app[:18], n, dur, h))
+    if len(act["timeline"]) > 300:
+        out.append("  ... (%d sessions au total, voir le rapport HTML)" % len(act["timeline"]))
+    if act["other"]:
+        out.append("")
+        out.append("AUTRES SITES LES PLUS DEMANDÉS (hors applis reconnues)")
+        out.append("-" * 78)
+        for dom, n in act["other"]:
+            out.append("  %-50s %6d" % (dom[:50], n))
+    return "\n".join(out)
+
+
+def render_activity_html(act, filters):
+    h = []
+    h.append("<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'><title>Détail d'activité - %s</title>" % _esc(act["client"]))
+    h.append("<style>%s</style></head><body><div class='wrap'>" % _CSS)
+    h.append("<h1>Détail d'activité par application &ndash; %s</h1>" % _esc(act["client"]))
+    h.append("<div class='card'><ul>" + "".join("<li>%s</li>" % _esc(p) for p in describe_filters(filters)[:-1])
+             + "<li>%d requêtes DNS ; sessions séparées par %d min de silence</li></ul></div>" % (act["total"], act["gap_minutes"]))
+    h.append("<div class='warn'>Le DNS montre <b>quand</b> une appli est utilisée, jamais le contenu des échanges, le "
+             "correspondant ni le sens (envoyé / reçu). Les indices sont déduits des sous-domaines et restent indicatifs.</div>")
+    if not act["apps"]:
+        h.append("<div class='card'>Aucune requête pour cet appareil sur la période.</div></div></body></html>")
+        return "\n".join(h)
+    h.append("<h2>Applications utilisées</h2><table><tr><th>Application</th><th class='num'>Requêtes</th><th class='num'>Jours</th>"
+             "<th class='num'>Sessions</th><th>Temps actif</th><th>Heures typiques</th><th>Indices</th><th>Sous-domaines les plus vus</th></tr>")
+    for a in act["apps"]:
+        h.append("<tr><td><b>%s</b></td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td>"
+                 "<td><small>%s</small></td><td><small>%s</small></td></tr>"
+                 % (_esc(a["app"]), a["count"], len(a["days"]), len(a["sessions"]), _esc(fmt_duration(a["active_seconds"])),
+                    _esc(", ".join(typical_slots(a["hours"])) or "-"),
+                    _esc(", ".join("%s ×%d" % (k, v) for k, v in a["hints"].most_common(4))),
+                    _esc(", ".join("%s (%d)" % (k, v) for k, v in a["hosts"].most_common(3)))))
+    h.append("</table>")
+    apps = [a["app"] for a in act["apps"] if a["app"] != "(autres sites)"][:10]
+    h.append("<h2>Activité par jour</h2><table><tr><th>Date</th>" + "".join("<th class='num'>%s</th>" % _esc(x) for x in apps) + "</tr>")
+    for day in sorted(act["day_app"]):
+        c = act["day_app"][day]
+        h.append("<tr><td>%s %s</td>%s</tr>" % (_esc(fmt_date(day)), WEEKDAYS_FR[day.weekday()],
+                                              "".join("<td class='num'>%s</td>" % (c.get(x) or "") for x in apps)))
+    h.append("</table>")
+    h.append("<h2>Chronologie des sessions</h2><table><tr><th>Jour</th><th>Début</th><th>Fin</th><th>Durée</th><th>Application</th>"
+             "<th class='num'>Requêtes</th><th>Indices</th></tr>")
+    for start, end, app, n, hints in act["timeline"]:
+        h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td><small>%s</small></td></tr>"
+                 % (WEEKDAYS_FR_LONG[start.weekday()], _esc(fmt_dt(start)), _esc(end.strftime("%H:%M:%S")),
+                    _esc(fmt_duration(max(60, (end - start).total_seconds()))), _esc(app), n,
+                    _esc(", ".join("%s ×%d" % (k, v) for k, v in hints.most_common(3)))))
+    h.append("</table>")
+    if act["other"]:
+        h.append("<h2>Autres sites les plus demandés</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th></tr>")
+        for dom, n in act["other"]:
+            h.append("<tr><td>%s</td><td class='num'>%d</td></tr>" % (_esc(dom), n))
+        h.append("</table>")
+    h.append("</div></body></html>")
+    return "\n".join(h)
+
+
+def write_activity_csv(analysis, path):
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh, delimiter=";")
+        w.writerow(["date", "heure", "jour", "application", "domaine", "indice"])
+        for t, host in sorted(analysis.all_records or [], key=lambda r: r[0]):
+            w.writerow([t.strftime("%Y-%m-%d"), t.strftime("%H:%M:%S"), WEEKDAYS_FR[t.weekday()],
+                        app_of_host(host) or "", host, host_hint(host)[1] or ""])
 
 
 # ---------------------------------------------------------------------------
@@ -1561,6 +1756,7 @@ class Job(object):
         self.top = 25
         self.top_sites = 0          # >0 : lister les N sites les plus visités, toutes catégories
         self.keep_all_hosts = False
+        self.activity = False       # commande "activite" : conserver toutes les requêtes du client
 
 
 def build_filters(job):
@@ -1585,7 +1781,8 @@ def run_analysis(job, progress=None, for_clients=False):
         progress("ATTENTION : dossier 'listes' introuvable, aucune détection possible !")
     filters = build_filters(job)
     aliases = load_client_aliases(lists_dir, job.aliases)
-    analysis = Analysis(filters, classifier, aliases, keep_all_hosts=job.keep_all_hosts or job.top_sites > 0)
+    analysis = Analysis(filters, classifier, aliases, keep_all_hosts=job.keep_all_hosts or job.top_sites > 0,
+                        keep_all_records=job.activity)
     analysis.mac_vendors = load_mac_vendors(lists_dir)
     if job.leases_path:
         analysis.leases = load_leases_file(job.leases_path)
@@ -1630,6 +1827,8 @@ def build_parser():
   adguard_analyse.py rapport --api http://192.168.1.10:3000 --user admin --password secret \\
         --client 192.168.1.42 --jours 30 --heures 22h-6h --html rapport.html
   adguard_analyse.py rapport --log querylog.json --client iphone --du 01/09/2026 --au 21/09/2026 --weekend
+  adguard_analyse.py activite --api http://192.168.1.10:3000 --user admin --password secret \\
+        --client 192.168.1.42 --jours 7 --html activite.html     (quand chaque appli est utilisée)
   adguard_analyse.py test-domaine fr.pornhub.com tinder.com essex.ac.uk
 """)
     src = p.add_argument_group("Source des journaux")
@@ -1666,8 +1865,9 @@ def build_parser():
                       help="ajouter les N sites les plus visités par l'appareil, toutes catégories (pour repérer un site inconnu des listes)")
     outp.add_argument("--ouvrir", action="store_true", help="ouvrir le rapport HTML dans le navigateur")
 
-    p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "test-domaine", "gui"],
-                   help="rapport (défaut) | clients : lister les appareils | test-domaine : tester la classification | gui")
+    p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "activite", "test-domaine", "gui"],
+                   help="rapport (défaut) | clients : lister les appareils | activite : chronologie d'usage par appli "
+                        "d'un appareil (--client obligatoire) | test-domaine : tester la classification | gui")
     p.add_argument("domaines", nargs="*", help="domaines à tester avec la commande test-domaine")
     return p
 
@@ -1768,6 +1968,10 @@ def main(argv=None):
         job = job_from_args(args)
         if not job.api_url and not job.log_paths:
             parser.error("indiquez une source : --api URL --user U --password P  ou  --log querylog.json")
+        if args.commande == "activite":
+            if not job.clients:
+                parser.error("la commande activite demande un appareil : --client IP")
+            job.activity = True
         progress = lambda m: print("  [..] " + m, file=sys.stderr)
         analysis = run_analysis(job, progress, for_clients=(args.commande == "clients"))
     except (ValueError, FileNotFoundError, RuntimeError) as e:
@@ -1776,6 +1980,21 @@ def main(argv=None):
 
     if args.commande == "clients":
         print(render_clients_text(analysis))
+        return 0
+
+    if args.commande == "activite":
+        act = build_activity(analysis, job.gap_minutes)
+        print(render_activity_text(act, analysis.filters))
+        if args.html:
+            with open(args.html, "w", encoding="utf-8") as fh:
+                fh.write(render_activity_html(act, analysis.filters))
+            print("\nRapport HTML écrit : %s" % os.path.abspath(args.html), file=sys.stderr)
+            if args.ouvrir:
+                import webbrowser
+                webbrowser.open("file://" + os.path.abspath(args.html))
+        if args.csv:
+            write_activity_csv(analysis, args.csv)
+            print("CSV écrit : %s" % os.path.abspath(args.csv), file=sys.stderr)
         return 0
 
     rep = build_report(analysis, job.threshold_days, job.gap_minutes, job.top, job.top_sites)

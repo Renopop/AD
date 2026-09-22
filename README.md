@@ -148,6 +148,24 @@ Options principales (`--help` pour tout voir) :
 Le rapport indique pour chaque requête si AdGuard l'a **bloquée** (le site a été demandé mais pas
 atteint, si le contrôle parental est actif) ou **autorisée** (le site a été atteint).
 
+### Détail d'activité par application (commande `activite`)
+
+```
+python adguard_analyse.py activite --api http://192.168.1.10:3000 --user admin --password secret ^
+    --client 192.168.1.42 --jours 7 --html activite.html --csv activite.csv
+```
+
+Pour un appareil et une période, ce rapport (bouton « Détail d'activité (applis) » dans l'interface) montre
+**quand** chaque application est utilisée : WhatsApp, Snapchat, TikTok, Instagram, Discord, YouTube, jeux...
+avec les sessions (début, fin, durée), les heures typiques, l'activité par jour, et des indices tirés des
+sous-domaines (`mmg.whatsapp.net` = média photo/vidéo/vocal envoyé ou reçu, `pps.whatsapp.net` = photos de
+profil consultées, `sc-cdn.net` = snaps chargés...).
+
+Limite à bien comprendre : le DNS ne voit ni le contenu des messages, ni le correspondant, ni le sens
+(envoyé / reçu), et ne distingue pas de façon fiable un tchat d'un appel. Les applis de messagerie gardent
+une connexion ouverte : un message ne provoque pas de requête DNS, seuls l'ouverture de l'appli, les
+reconnexions et les médias en génèrent. C'est donc une chronologie d'usage, pas un relevé de conversations.
+
 ---
 
 ## 5. Identifier l'iPhone sans son adresse MAC

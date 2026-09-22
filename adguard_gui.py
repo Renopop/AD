@@ -151,7 +151,8 @@ class App(object):
         self.btn_report.pack(side="left")
         self.open_html = tk.BooleanVar(value=True)
         ttk.Checkbutton(act, text="ouvrir le rapport HTML dans le navigateur", variable=self.open_html).pack(side="left", padx=8)
-        ttk.Button(act, text="Ouvrir le dernier rapport", command=self._open_last).pack(side="left")
+        ttk.Button(act, text="Détail d'activité (applis)", command=self.run_activity).pack(side="left")
+        ttk.Button(act, text="Ouvrir le dernier rapport", command=self._open_last).pack(side="left", padx=8)
         ttk.Button(act, text="Exporter CSV (Excel)", command=self.export_csv).pack(side="left", padx=8)
         ttk.Button(act, text="Enregistrer les paramètres", command=self._save_config).pack(side="right")
         ttk.Button(act, text="Ouvrir le dossier des listes", command=self._open_lists).pack(side="right", padx=8)
@@ -340,6 +341,31 @@ class App(object):
                 self.queue.put(("error", "%s\n%s" % (e, traceback.format_exc() if not isinstance(e, (ValueError, RuntimeError, FileNotFoundError)) else "")))
         self._start(work)
 
+    def run_activity(self):
+        try:
+            job = self._job()
+        except ValueError as e:
+            messagebox.showerror("Paramètres", str(e))
+            return
+        if not job.clients:
+            messagebox.showinfo("Appareil", "Choisissez d'abord un appareil (IP ou nom) : le détail d'activité porte sur un seul appareil.")
+            return
+        job.activity = True
+
+        def work():
+            try:
+                analysis = core.run_analysis(job, lambda m: self.queue.put(("status", m)))
+                act = core.build_activity(analysis, job.gap_minutes)
+                out_dir = os.path.join(app_dir(), "rapports")
+                os.makedirs(out_dir, exist_ok=True)
+                path = os.path.join(out_dir, "activite_%s.html" % dt.datetime.now().strftime("%Y-%m-%d_%Hh%M"))
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(core.render_activity_html(act, analysis.filters))
+                self.queue.put(("activity", (analysis, act, path)))
+            except Exception as e:  # noqa: BLE001
+                self.queue.put(("error", "%s\n%s" % (e, traceback.format_exc() if not isinstance(e, (ValueError, RuntimeError, FileNotFoundError)) else "")))
+        self._start(work)
+
     def export_csv(self):
         if not self.report:
             messagebox.showinfo("CSV", "Générez d'abord un rapport.")
@@ -376,6 +402,15 @@ class App(object):
                                       + ("   - %s %s" % (mac, vendor) if mac else ""))
                     self.client_box["values"] = values
                     self.status.set("%d appareil(s) trouvé(s). Choisissez-en un dans la liste puis générez le rapport." % len(values))
+                elif kind == "activity":
+                    self.btn_report.state(["!disabled"])
+                    analysis, act, path = payload
+                    self.analysis, self.last_html = analysis, path
+                    self._log("")
+                    self._log(core.render_activity_text(act, analysis.filters))
+                    self.status.set("Détail d'activité HTML : " + path)
+                    if self.open_html.get():
+                        webbrowser.open("file://" + os.path.abspath(path))
                 elif kind == "report":
                     self.btn_report.state(["!disabled"])
                     analysis, rep, path = payload

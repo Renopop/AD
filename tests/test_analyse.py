@@ -412,3 +412,51 @@ class TestMAC(unittest.TestCase):
         leases = api.dhcp_leases()
         self.assertEqual(leases["192.168.1.42"]["mac"], "da:3b:6c:11:22:33")
         self.assertTrue(leases["192.168.1.5"]["static"])
+
+
+class TestActivite(unittest.TestCase):
+    def test_indices_et_applis(self):
+        self.assertEqual(core.host_hint("mmg.whatsapp.net")[1][:5], "média")
+        self.assertEqual(core.host_hint("e7.whatsapp.net")[0], "WhatsApp")
+        self.assertEqual(core.app_of_host("api.whatsapp.com"), "WhatsApp")
+        self.assertEqual(core.app_of_host("sc-cdn.net"), "Snapchat")
+        self.assertIsNone(core.app_of_host("www.lemonde.fr"))
+
+    def test_build_activity(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 9, 1, 20, 0, tzinfo=PARIS)
+        es = [entry(base + dt.timedelta(minutes=m), h, "10.0.0.5") for m, h in
+              [(0, "e7.whatsapp.net"), (1, "mmg.whatsapp.net"), (2, "mmg.whatsapp.net"), (40, "static.whatsapp.net"),
+               (41, "app.snapchat.com"), (42, "www.lemonde.fr")]]
+        es.append(entry(base, "www.google.com", "10.0.0.6"))
+        a = core.Analysis(core.Filters(clients=["10.0.0.5"]), c, keep_all_records=True)
+        a.feed(es)
+        act = core.build_activity(a, gap_minutes=10)
+        self.assertEqual(act["total"], 6)
+        wa = [x for x in act["apps"] if x["app"] == "WhatsApp"][0]
+        self.assertEqual(wa["count"], 4)
+        self.assertEqual(len(wa["sessions"]), 2)
+        self.assertEqual(wa["hints"]["média envoyé ou reçu (photo, vidéo, vocal, document)"], 2)
+        self.assertEqual(act["other"][0], ("lemonde.fr", 1))
+        txt = core.render_activity_text(act, a.filters)
+        self.assertIn("WhatsApp", txt)
+        html_out = core.render_activity_html(act, a.filters)
+        self.assertIn("Chronologie", html_out)
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "a.csv")
+            core.write_activity_csv(a, p)
+            with open(p, encoding="utf-8-sig") as fh:
+                self.assertEqual(len(fh.read().splitlines()), 7)
+
+    def test_cli_activite(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "querylog.json")
+            subprocess.check_call([sys.executable, os.path.join(ROOT, "exemples", "generer_exemple.py"), log, "--jours", "3"])
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "adguard_analyse.py"), "activite", "--log", log,
+                                  "--client", "192.168.1.42", "--tz", "+02:00", "--html", os.path.join(d, "a.html")],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            self.assertIn("APPLICATIONS UTILISÉES", out.stdout.decode("utf-8"))
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "adguard_analyse.py"), "activite", "--log", log],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.assertNotEqual(out.returncode, 0)   # --client obligatoire

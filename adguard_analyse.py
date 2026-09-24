@@ -813,6 +813,26 @@ class AdGuardAPI(object):
                 aliases[ip.lower()] = name
         return aliases
 
+    def querylog_retention_hours(self):
+        """Durée de conservation du journal configurée dans AdGuard (heures), ou None si inconnue."""
+        for path in ("/control/querylog/config", "/control/querylog_info"):
+            try:
+                data = self.get_json(path)
+            except Exception:
+                continue
+            interval = data.get("interval")
+            if interval is None:
+                continue
+            try:
+                interval = float(interval)
+            except (TypeError, ValueError):
+                continue
+            # /querylog/config renvoie des millisecondes, l'ancien /querylog_info des jours
+            if path.endswith("config"):
+                return interval / 3600000.0
+            return interval * 24.0
+        return None
+
     def dhcp_leases(self):
         """Baux DHCP d'AdGuard Home (si son serveur DHCP est actif) -> {ip: {mac, hostname, static}}."""
         leases = {}
@@ -968,6 +988,7 @@ class Analysis(object):
         self.classifier = classifier
         self.aliases = aliases or {}
         self.leases = {}            # ip -> {mac, hostname, static}
+        self.retention_hours = None # conservation du journal configurée dans AdGuard (heures)
         self.mac_vendors = {}
         self.records = []
         self.clients = {}
@@ -1156,7 +1177,7 @@ def build_report(analysis, threshold_days=3, gap_minutes=10, top=25, top_sites=0
             if f.client_matches(ip, names):
                 selected_clients[ip] = analysis.display_name(ip, names)
 
-    warnings = []
+    warnings = coverage_warnings(analysis)
     if analysis.total_scanned == 0:
         warnings.append("Aucune requête lue : vérifiez la source (fichier vide ou API sans journal).")
     elif analysis.total_in_period == 0:
@@ -1268,6 +1289,7 @@ def build_activity(analysis, gap_minutes=10, top_other=30):
     timeline.sort(key=lambda x: x[0])
     other_rows = [(dom, n, analysis.classifier.classify(dom)[0]) for dom, n in other.most_common(top_other)]
     return {"apps": ordered, "other": other_rows, "day_app": day_app, "timeline": timeline, "details": [],
+            "warnings": coverage_warnings(analysis), "period_first": analysis.period_first, "period_last": analysis.period_last,
             "total": len(recs), "gap_minutes": gap_minutes,
             "client": (analysis.filters.clients[0] if analysis.filters.clients else "?"),
             "first": recs[0][0] if recs else None, "last": recs[-1][0] if recs else None}
@@ -1486,6 +1508,7 @@ def build_sites(analysis, gap_minutes=30, with_noise=False):
     for t, base, host, cat, app in journal:
         per_day[t.date()].add(base)
     return {"sites": ordered, "journal": journal, "per_day": per_day, "gap_minutes": gap_minutes,
+            "warnings": coverage_warnings(analysis), "period_first": analysis.period_first, "period_last": analysis.period_last,
             "with_noise": with_noise, "total": len(recs),
             "client": (analysis.filters.clients[0] if analysis.filters.clients else "?")}
 
@@ -1500,6 +1523,10 @@ def render_sites_text(res, filters, limit=0):
                % (res["total"], len(res["sites"]), len(res["journal"]), res["gap_minutes"]))
     out.append("  - %s" % ("bruit publicitaire / technique / système inclus" if res["with_noise"]
                           else "bruit publicitaire, technique et système exclu (--avec-bruit pour tout voir)"))
+    if res.get("period_first"):
+        out.append("  - journal couvert : du %s au %s" % (fmt_dt(res["period_first"]), fmt_dt(res["period_last"])))
+    for w in res.get("warnings") or []:
+        out.append("ATTENTION : " + w)
     if not res["sites"]:
         out.append("")
         out.append("Aucune requête pour cet appareil sur la période.")
@@ -1542,6 +1569,8 @@ def render_sites_html(res, filters):
              % (res["total"], len(res["sites"]), len(res["journal"]), res["gap_minutes"])
              + "<li>%s</li></ul></div>" % ("bruit publicitaire / technique / système inclus" if res["with_noise"]
                                            else "bruit publicitaire, technique et système exclu"))
+    for w in res.get("warnings") or []:
+        h.append("<div class='warn'>%s</div>" % _esc(w))
     h.append("<h2>Tous les domaines</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th><th class='num'>Jours</th>"
              "<th class='num'>Visites</th><th>Première</th><th>Dernière</th><th>Heures typiques</th><th>Catégorie / appli</th><th>Sous-domaines</th></tr>")
     for st in res["sites"]:
@@ -1582,6 +1611,10 @@ def render_activity_text(act, filters):
     for p in describe_filters(filters)[:-1]:
         out.append("  - " + p)
     out.append("  - %d requêtes DNS ; sessions séparées par %d min de silence" % (act["total"], act["gap_minutes"]))
+    if act.get("period_first"):
+        out.append("  - journal couvert : du %s au %s" % (fmt_dt(act["period_first"]), fmt_dt(act["period_last"])))
+    for w in act.get("warnings") or []:
+        out.append("ATTENTION : " + w)
     out.append("")
     out.append("Rappel : le DNS montre QUAND une appli est utilisée, jamais le contenu, le correspondant ni le sens")
     out.append("(envoyé/reçu). Les indices entre parenthèses sont déduits des sous-domaines et restent indicatifs.")
@@ -1639,6 +1672,8 @@ def render_activity_html(act, filters):
     h.append("<h1>Détail d'activité par application &ndash; %s</h1>" % _esc(act["client"]))
     h.append("<div class='card'><ul>" + "".join("<li>%s</li>" % _esc(p) for p in describe_filters(filters)[:-1])
              + "<li>%d requêtes DNS ; sessions séparées par %d min de silence</li></ul></div>" % (act["total"], act["gap_minutes"]))
+    for w in act.get("warnings") or []:
+        h.append("<div class='warn'>%s</div>" % _esc(w))
     h.append("<div class='warn'>Le DNS montre <b>quand</b> une appli est utilisée, jamais le contenu des échanges, le "
              "correspondant ni le sens (envoyé / reçu). Les indices sont déduits des sous-domaines et restent indicatifs. "
              "<b>(autres sites)</b> = requêtes sans appli connue : sites visités dans le navigateur ou applis non répertoriées, "
@@ -1695,6 +1730,34 @@ def write_activity_csv(analysis, path):
 # Rendu texte
 # ---------------------------------------------------------------------------
 
+def fmt_retention(hours):
+    if hours >= 48:
+        return "%d jours" % round(hours / 24.0)
+    return "%d heures" % round(hours)
+
+
+def coverage_warnings(analysis):
+    """Avertit si le journal couvre moins que la période demandée (conservation trop courte dans AdGuard)."""
+    warns = []
+    f = analysis.filters
+    first, last = analysis.period_first, analysis.period_last
+    if first is None or last is None:
+        return warns
+    if f.since is not None:
+        wanted_from = to_local(f.since, f.tz)
+        if first - wanted_from > dt.timedelta(hours=12):
+            warns.append("Le journal ne commence que le %s alors que la période demandée débute le %s : AdGuard n'a "
+                         "plus les données antérieures. Vérifiez la durée de conservation dans AdGuard (Paramètres > "
+                         "Paramètres généraux > Journal des requêtes) et mettez-la à 90 jours ; l'historique se "
+                         "constituera à partir de maintenant." % (fmt_dt(first), fmt_date(wanted_from)))
+    if analysis.retention_hours and f.since is not None and f.until is not None:
+        wanted_hours = (f.until - f.since).total_seconds() / 3600.0
+        if analysis.retention_hours < wanted_hours - 1:
+            warns.append("Conservation du journal configurée dans AdGuard : %s, période demandée : %s. Augmentez la "
+                         "conservation (90 jours conseillés)." % (fmt_retention(analysis.retention_hours), fmt_retention(wanted_hours)))
+    return warns
+
+
 def describe_filters(f):
     parts = []
     if f.since is not None and f.until is not None:
@@ -1725,6 +1788,10 @@ def render_clients_text(analysis, top_apps=6):
     out = []
     out.append("APPAREILS VUS DANS LE JOURNAL (%d requêtes dans la période)" % analysis.total_in_period)
     out.append("=" * 78)
+    if analysis.period_first:
+        out.append("Journal couvert : du %s au %s" % (fmt_dt(analysis.period_first), fmt_dt(analysis.period_last)))
+    for w in coverage_warnings(analysis):
+        out.append("ATTENTION : " + w)
     clients = sorted(analysis.clients.values(), key=lambda c: -c.count)
     if not clients:
         out.append("Aucun client.")
@@ -2149,6 +2216,9 @@ def run_analysis(job, progress=None, for_clients=False):
         api = AdGuardAPI(job.api_url, job.api_user, job.api_password, job.api_insecure)
         st = api.status()
         progress("Connecté à AdGuard Home %s" % st.get("version", ""))
+        analysis.retention_hours = api.querylog_retention_hours()
+        if analysis.retention_hours:
+            progress("Conservation du journal configurée dans AdGuard : %s" % fmt_retention(analysis.retention_hours))
         aliases.update({k: v for k, v in api.clients().items() if k not in aliases})
         if not analysis.leases:
             analysis.leases = api.dhcp_leases()

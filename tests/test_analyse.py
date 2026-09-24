@@ -218,6 +218,8 @@ class FakeAdGuard(http.server.BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(url.query)
         if url.path == "/control/status":
             return self._send(200, {"version": "v0.107.0-test"})
+        if url.path == "/control/querylog/config":
+            return self._send(200, {"enabled": True, "interval": 86400000, "anonymize_client_ip": False})
         if url.path == "/control/dhcp/status":
             return self._send(200, {"enabled": True,
                                     "leases": [{"mac": "da:3b:6c:11:22:33", "ip": "192.168.1.42", "hostname": "iPhone-de-Theo", "expires": "2026-09-22T10:00:00Z"}],
@@ -537,3 +539,26 @@ class TestSites(unittest.TestCase):
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             self.assertIn("TOUS LES DOMAINES", out.stdout.decode("utf-8"))
             self.assertTrue(os.path.getsize(os.path.join(d, "s.csv")) > 100)
+
+
+class TestConservation(unittest.TestCase):
+    def test_retention_api(self):
+        TestAPI.setUpClass()
+        self.addCleanup(TestAPI.tearDownClass)
+        api = core.AdGuardAPI(TestAPI.url, "admin", "secret")
+        self.assertAlmostEqual(api.querylog_retention_hours(), 24.0)
+
+    def test_avertissement_couverture(self):
+        c = make_classifier()
+        job = core.Job()
+        job.date_from, job.date_to, job.tz = dt.date(2026, 9, 1), dt.date(2026, 9, 10), "+02:00"
+        a = core.Analysis(core.build_filters(job), c)
+        a.retention_hours = 24
+        base = dt.datetime(2026, 9, 9, 12, 0, tzinfo=PARIS)
+        a.feed([entry(base, "www.google.com", "10.0.0.5"), entry(base + dt.timedelta(hours=5), "www.google.com", "10.0.0.5")])
+        warns = core.coverage_warnings(a)
+        self.assertEqual(len(warns), 2)
+        self.assertIn("ne commence que le 09/09/2026", warns[0])
+        self.assertIn("24 heures", warns[1])
+        rep = core.build_report(a)
+        self.assertTrue(any("conservation" in w for w in rep["warnings"]))

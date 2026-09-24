@@ -493,3 +493,47 @@ class TestDetailWhatsApp(unittest.TestCase):
         self.assertEqual(job.detail_apps, ["Snapchat"])
         with self.assertRaises(ValueError):
             core.job_from_args(p.parse_args(["activite", "--log", "x", "--client", "1.2.3.4", "--appli", "inconnue"]))
+
+
+class TestSites(unittest.TestCase):
+    def test_build_sites(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 9, 5, 20, 0, tzinfo=PARIS)
+        hosts = [(0, "www.wikipedia.org"), (1, "fr.wikipedia.org"), (50, "www.wikipedia.org"), (2, "fr.pornhub.com"),
+                 (3, "ei.phncdn.com"), (4, "app-measurement.com"), (5, "gateway.icloud.com"), (6, "api.snapchat.com")]
+        es = [entry(base + dt.timedelta(minutes=m), h, "10.0.0.5") for m, h in hosts]
+        a = core.Analysis(core.Filters(clients=["10.0.0.5"], tz=PARIS), c, keep_all_records=True)
+        a.feed(es)
+        res = core.build_sites(a, gap_minutes=30)
+        doms = [x["domain"] for x in res["sites"]]
+        self.assertIn("wikipedia.org", doms)
+        self.assertNotIn("app-measurement.com", doms)   # bruit exclu
+        self.assertNotIn("icloud.com", doms)            # système exclu
+        wiki = [x for x in res["sites"] if x["domain"] == "wikipedia.org"][0]
+        self.assertEqual(wiki["count"], 3)
+        self.assertEqual(wiki["visits"], 2)             # 50 min plus tard = nouvelle visite
+        ph = [x for x in res["sites"] if x["domain"] == "pornhub.com"][0]
+        self.assertEqual(ph["category"], "porno")
+        self.assertEqual(len(res["journal"]), 5)
+        res2 = core.build_sites(a, gap_minutes=30, with_noise=True)
+        self.assertIn("app-measurement.com", [x["domain"] for x in res2["sites"]])
+        txt = core.render_sites_text(res, a.filters)
+        self.assertIn("JOURNAL DE NAVIGATION", txt)
+        self.assertIn("!! Pornographie", txt)
+        self.assertIn("Journal de navigation", core.render_sites_html(res, a.filters))
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "s.csv")
+            core.write_sites_csv(res, p)
+            with open(p, encoding="utf-8-sig") as fh:
+                self.assertEqual(len(fh.read().splitlines()), 6)
+
+    def test_cli_sites(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "querylog.json")
+            subprocess.check_call([sys.executable, os.path.join(ROOT, "exemples", "generer_exemple.py"), log, "--jours", "2"])
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "adguard_analyse.py"), "sites", "--log", log,
+                                  "--client", "192.168.1.42", "--tz", "+02:00", "--html", os.path.join(d, "s.html"), "--csv", os.path.join(d, "s.csv")],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            self.assertIn("TOUS LES DOMAINES", out.stdout.decode("utf-8"))
+            self.assertTrue(os.path.getsize(os.path.join(d, "s.csv")) > 100)

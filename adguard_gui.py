@@ -156,6 +156,7 @@ class App(object):
         self.open_html = tk.BooleanVar(value=True)
         ttk.Checkbutton(act, text="ouvrir le rapport HTML dans le navigateur", variable=self.open_html).pack(side="left", padx=8)
         ttk.Button(act, text="Détail d'activité (applis)", command=self.run_activity).pack(side="left")
+        ttk.Button(act, text="Sites consultés", command=self.run_sites).pack(side="left", padx=8)
         ttk.Button(act, text="Ouvrir le dernier rapport", command=self._open_last).pack(side="left", padx=8)
         ttk.Button(act, text="Exporter CSV (Excel)", command=self.export_csv).pack(side="left", padx=8)
         ttk.Button(act, text="Enregistrer les paramètres", command=self._save_config).pack(side="right")
@@ -376,6 +377,33 @@ class App(object):
                 self.queue.put(("error", "%s\n%s" % (e, traceback.format_exc() if not isinstance(e, (ValueError, RuntimeError, FileNotFoundError)) else "")))
         self._start(work)
 
+    def run_sites(self):
+        try:
+            job = self._job()
+        except ValueError as e:
+            messagebox.showerror("Paramètres", str(e))
+            return
+        if not job.clients:
+            messagebox.showinfo("Appareil", "Choisissez d'abord un appareil (IP ou nom) : la liste des sites porte sur un seul appareil.")
+            return
+        job.activity = True
+
+        def work():
+            try:
+                analysis = core.run_analysis(job, lambda m: self.queue.put(("status", m)))
+                res = core.build_sites(analysis, 30, False)
+                out_dir = os.path.join(app_dir(), "rapports")
+                os.makedirs(out_dir, exist_ok=True)
+                stamp = dt.datetime.now().strftime("%Y-%m-%d_%Hh%M")
+                path = os.path.join(out_dir, "sites_%s.html" % stamp)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(core.render_sites_html(res, analysis.filters))
+                core.write_sites_csv(res, os.path.join(out_dir, "sites_%s.csv" % stamp))
+                self.queue.put(("sites", (analysis, res, path)))
+            except Exception as e:  # noqa: BLE001
+                self.queue.put(("error", "%s\n%s" % (e, traceback.format_exc() if not isinstance(e, (ValueError, RuntimeError, FileNotFoundError)) else "")))
+        self._start(work)
+
     def export_csv(self):
         if not self.report:
             messagebox.showinfo("CSV", "Générez d'abord un rapport.")
@@ -412,6 +440,15 @@ class App(object):
                                       + ("   - %s %s" % (mac, vendor) if mac else ""))
                     self.client_box["values"] = values
                     self.status.set("%d appareil(s) trouvé(s). Choisissez-en un dans la liste puis générez le rapport." % len(values))
+                elif kind == "sites":
+                    self.btn_report.state(["!disabled"])
+                    analysis, res, path = payload
+                    self.analysis, self.last_html = analysis, path
+                    self._log("")
+                    self._log(core.render_sites_text(res, analysis.filters, limit=200))
+                    self.status.set("Sites consultés : %s (+ CSV à côté)" % path)
+                    if self.open_html.get():
+                        webbrowser.open("file://" + os.path.abspath(path))
                 elif kind == "activity":
                     self.btn_report.state(["!disabled"])
                     analysis, act, path = payload

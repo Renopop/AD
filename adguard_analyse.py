@@ -1452,6 +1452,129 @@ def render_app_detail_html(det):
     return "\n".join(h)
 
 
+SYSTEM_APPS = {"Apple / iCloud (système)", "Microsoft (système)"}
+
+
+def build_sites(analysis, gap_minutes=30, with_noise=False):
+    """Tous les sites consultés par le client sélectionné : par domaine, et journal de navigation chronologique."""
+    recs = sorted(analysis.all_records or [], key=lambda r: r[0])
+    gap = dt.timedelta(minutes=gap_minutes)
+    sites = {}
+    journal = []
+    for t, host in recs:
+        app = app_of_host(host)
+        if not with_noise and app in NOISE_APPS | SYSTEM_APPS:
+            continue
+        base = base_domain(host)
+        st = sites.get(base)
+        if st is None:
+            st = sites[base] = {"domain": base, "count": 0, "days": set(), "first": t, "last": t, "hours": collections.Counter(),
+                                "hosts": collections.Counter(), "app": app, "category": analysis.classifier.classify(host)[0],
+                                "visits": 0}
+        st["count"] += 1
+        st["days"].add(t.date())
+        st["hours"][t.hour] += 1
+        st["hosts"][host] += 1
+        if st["category"] is None:
+            st["category"] = analysis.classifier.classify(host)[0]
+        if t - st["last"] > gap or st["visits"] == 0:
+            st["visits"] += 1
+            journal.append((t, base, host, st["category"], app))
+        st["last"] = t
+    ordered = sorted(sites.values(), key=lambda x: (-x["count"], x["domain"]))
+    per_day = collections.defaultdict(set)
+    for t, base, host, cat, app in journal:
+        per_day[t.date()].add(base)
+    return {"sites": ordered, "journal": journal, "per_day": per_day, "gap_minutes": gap_minutes,
+            "with_noise": with_noise, "total": len(recs),
+            "client": (analysis.filters.clients[0] if analysis.filters.clients else "?")}
+
+
+def render_sites_text(res, filters, limit=0):
+    out = []
+    out.append("SITES CONSULTÉS - appareil %s" % res["client"])
+    out.append("=" * 78)
+    for p in describe_filters(filters)[:-1]:
+        out.append("  - " + p)
+    out.append("  - %d requêtes DNS, %d domaines distincts, %d visites (nouvelle visite après %d min sans requête vers le domaine)"
+               % (res["total"], len(res["sites"]), len(res["journal"]), res["gap_minutes"]))
+    out.append("  - %s" % ("bruit publicitaire / technique / système inclus" if res["with_noise"]
+                          else "bruit publicitaire, technique et système exclu (--avec-bruit pour tout voir)"))
+    if not res["sites"]:
+        out.append("")
+        out.append("Aucune requête pour cet appareil sur la période.")
+        return "\n".join(out)
+    out.append("")
+    out.append("TOUS LES DOMAINES (du plus demandé au moins demandé)")
+    out.append("-" * 78)
+    out.append("  %-40s %6s %5s %6s  %-16s %-16s %s" % ("domaine", "req.", "jours", "visites", "première", "dernière", "catégorie / appli"))
+    rows = res["sites"][:limit] if limit else res["sites"]
+    for st in rows:
+        tag = ("!! " + CATEGORY_LABELS.get(st["category"], st["category"])) if st["category"] else (st["app"] or "")
+        out.append("  %-40s %6d %5d %6d  %-16s %-16s %s" % (st["domain"][:40], st["count"], len(st["days"]), st["visits"],
+                                                            st["first"].strftime("%d/%m %H:%M"), st["last"].strftime("%d/%m %H:%M"), tag))
+    if limit and len(res["sites"]) > limit:
+        out.append("  ... (%d domaines au total, voir le HTML ou le CSV)" % len(res["sites"]))
+    out.append("")
+    out.append("DOMAINES PAR JOUR")
+    out.append("-" * 78)
+    for day in sorted(res["per_day"]):
+        doms = sorted(res["per_day"][day])
+        out.append("  %s %s (%d) : %s" % (fmt_date(day), WEEKDAYS_FR[day.weekday()], len(doms), ", ".join(doms[:40]) + (" ..." if len(doms) > 40 else "")))
+    out.append("")
+    out.append("JOURNAL DE NAVIGATION (chaque nouvelle visite d'un domaine)")
+    out.append("-" * 78)
+    for t, base, host, cat, app in res["journal"][-400:]:
+        tag = ("!! " + CATEGORY_LABELS.get(cat, cat)) if cat else (app or "")
+        out.append("  %s %s  %-40s %s" % (WEEKDAYS_FR[t.weekday()], fmt_dt(t), base[:40], tag))
+    if len(res["journal"]) > 400:
+        out.append("  ... (%d visites au total, voir le HTML ou le CSV)" % len(res["journal"]))
+    return "\n".join(out)
+
+
+def render_sites_html(res, filters):
+    h = []
+    h.append("<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'><title>Sites consultés - %s</title>" % _esc(res["client"]))
+    h.append("<style>%s</style></head><body><div class='wrap'>" % _CSS)
+    h.append("<h1>Sites consultés &ndash; %s</h1>" % _esc(res["client"]))
+    h.append("<div class='card'><ul>" + "".join("<li>%s</li>" % _esc(p) for p in describe_filters(filters)[:-1])
+             + "<li>%d requêtes DNS, %d domaines distincts, %d visites (nouvelle visite après %d min sans requête vers le domaine)</li>"
+             % (res["total"], len(res["sites"]), len(res["journal"]), res["gap_minutes"])
+             + "<li>%s</li></ul></div>" % ("bruit publicitaire / technique / système inclus" if res["with_noise"]
+                                           else "bruit publicitaire, technique et système exclu"))
+    h.append("<h2>Tous les domaines</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th><th class='num'>Jours</th>"
+             "<th class='num'>Visites</th><th>Première</th><th>Dernière</th><th>Heures typiques</th><th>Catégorie / appli</th><th>Sous-domaines</th></tr>")
+    for st in res["sites"]:
+        tag = _cat_tag(st["category"]) if st["category"] else _esc(st["app"] or "")
+        h.append("<tr><td><b>%s</b></td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><small>%s</small></td></tr>"
+                 % (_esc(st["domain"]), st["count"], len(st["days"]), st["visits"], _esc(fmt_dt(st["first"])), _esc(fmt_dt(st["last"])),
+                    _esc(", ".join(typical_slots(st["hours"])) or "-"), tag,
+                    _esc(", ".join("%s (%d)" % (k, v) for k, v in st["hosts"].most_common(3)))))
+    h.append("</table>")
+    h.append("<h2>Domaines par jour</h2><table><tr><th>Date</th><th class='num'>Domaines</th><th>Liste</th></tr>")
+    for day in sorted(res["per_day"]):
+        doms = sorted(res["per_day"][day])
+        h.append("<tr><td>%s %s</td><td class='num'>%d</td><td><small>%s</small></td></tr>"
+                 % (_esc(fmt_date(day)), WEEKDAYS_FR_LONG[day.weekday()], len(doms), _esc(", ".join(doms))))
+    h.append("</table>")
+    h.append("<h2>Journal de navigation</h2><table><tr><th>Jour</th><th>Date / heure</th><th>Domaine</th><th>Sous-domaine demandé</th><th>Catégorie / appli</th></tr>")
+    for t, base, host, cat, app in res["journal"]:
+        tag = _cat_tag(cat) if cat else _esc(app or "")
+        h.append("<tr><td>%s</td><td>%s</td><td><b>%s</b></td><td><small>%s</small></td><td>%s</td></tr>"
+                 % (WEEKDAYS_FR_LONG[t.weekday()], _esc(fmt_dt(t)), _esc(base), _esc(host), tag))
+    h.append("</table></div></body></html>")
+    return "\n".join(h)
+
+
+def write_sites_csv(res, path):
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh, delimiter=";")
+        w.writerow(["date", "heure", "jour", "domaine", "sous_domaine", "categorie", "application"])
+        for t, base, host, cat, app in res["journal"]:
+            w.writerow([t.strftime("%Y-%m-%d"), t.strftime("%H:%M:%S"), WEEKDAYS_FR[t.weekday()], base, host,
+                        CATEGORY_LABELS.get(cat, cat) if cat else "", app or ""])
+
+
 def render_activity_text(act, filters):
     out = []
     out.append("DÉTAIL D'ACTIVITÉ PAR APPLICATION - appareil %s" % act["client"])
@@ -1990,6 +2113,7 @@ class Job(object):
         self.keep_all_hosts = False
         self.activity = False       # commande "activite" : conserver toutes les requêtes du client
         self.detail_apps = ["WhatsApp"]   # applis détaillées au maximum dans le rapport d'activité
+        self.with_noise = False     # commande "sites" : inclure le bruit publicitaire / technique / système
 
 
 def build_filters(job):
@@ -2062,6 +2186,8 @@ def build_parser():
   adguard_analyse.py rapport --log querylog.json --client iphone --du 01/09/2026 --au 21/09/2026 --weekend
   adguard_analyse.py activite --api http://192.168.1.10:3000 --user admin --password secret \\
         --client 192.168.1.42 --jours 7 --html activite.html     (quand chaque appli est utilisée)
+  adguard_analyse.py sites --log querylog.json --client 192.168.1.42 --jours 7 --html sites.html --csv sites.csv
+        (tous les sites consultés, journal de navigation)
   adguard_analyse.py test-domaine fr.pornhub.com tinder.com essex.ac.uk
 """)
     src = p.add_argument_group("Source des journaux")
@@ -2096,13 +2222,16 @@ def build_parser():
     outp.add_argument("--top", type=int, default=25, metavar="N", help="nombre de lignes dans les classements (défaut 25)")
     outp.add_argument("--tous-sites", type=int, default=0, metavar="N",
                       help="ajouter les N sites les plus visités par l'appareil, toutes catégories (pour repérer un site inconnu des listes)")
+    outp.add_argument("--avec-bruit", action="store_true",
+                      help="commande sites : inclure aussi la publicité, les CDN et les domaines système")
     outp.add_argument("--appli", action="append", metavar="NOM",
                       help="commande activite : appli à détailler au maximum (défaut WhatsApp ; répétable, ex : --appli Snapchat)")
     outp.add_argument("--ouvrir", action="store_true", help="ouvrir le rapport HTML dans le navigateur")
 
-    p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "activite", "test-domaine", "gui"],
+    p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "activite", "sites", "test-domaine", "gui"],
                    help="rapport (défaut) | clients : lister les appareils | activite : chronologie d'usage par appli "
-                        "d'un appareil (--client obligatoire) | test-domaine : tester la classification | gui")
+                        "d'un appareil | sites : tous les sites consultés par un appareil (--client obligatoire) | "
+                        "test-domaine : tester la classification | gui")
     p.add_argument("domaines", nargs="*", help="domaines à tester avec la commande test-domaine")
     return p
 
@@ -2210,10 +2339,11 @@ def main(argv=None):
         job = job_from_args(args)
         if not job.api_url and not job.log_paths:
             parser.error("indiquez une source : --api URL --user U --password P  ou  --log querylog.json")
-        if args.commande == "activite":
+        if args.commande in ("activite", "sites"):
             if not job.clients:
-                parser.error("la commande activite demande un appareil : --client IP")
+                parser.error("la commande %s demande un appareil : --client IP" % args.commande)
             job.activity = True
+            job.with_noise = args.avec_bruit
         progress = lambda m: print("  [..] " + m, file=sys.stderr)
         analysis = run_analysis(job, progress, for_clients=(args.commande == "clients"))
     except (ValueError, FileNotFoundError, RuntimeError) as e:
@@ -2222,6 +2352,21 @@ def main(argv=None):
 
     if args.commande == "clients":
         print(render_clients_text(analysis))
+        return 0
+
+    if args.commande == "sites":
+        res = build_sites(analysis, max(job.gap_minutes, 30), job.with_noise)
+        print(render_sites_text(res, analysis.filters, limit=args.top if args.top != 25 else 0))
+        if args.html:
+            with open(args.html, "w", encoding="utf-8") as fh:
+                fh.write(render_sites_html(res, analysis.filters))
+            print("\nRapport HTML écrit : %s" % os.path.abspath(args.html), file=sys.stderr)
+            if args.ouvrir:
+                import webbrowser
+                webbrowser.open("file://" + os.path.abspath(args.html))
+        if args.csv:
+            write_sites_csv(res, args.csv)
+            print("CSV écrit : %s" % os.path.abspath(args.csv), file=sys.stderr)
         return 0
 
     if args.commande == "activite":

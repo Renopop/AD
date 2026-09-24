@@ -142,12 +142,28 @@ Options principales (`--help` pour tout voir) :
 | `--gap MIN` | silence qui sépare deux sessions (défaut 10 min) |
 | `--tz Europe/Paris` ou `+02:00` | fuseau d'affichage (défaut : celui du PC) |
 | `--alias 192.168.1.42=iPhone-Ado` | nommer un appareil (ou fichier `listes/clients.txt`) |
+| `--avec-bruit` | commande `sites` : inclure publicité, CDN et domaines système |
 | `--appli NOM` | commande `activite` : appli détaillée au maximum (défaut WhatsApp, répétable) |
 | `--tous-sites N` | ajouter les N sites les plus visités par l'appareil, toutes catégories, pour repérer un site de rencontres inconnu des listes |
 | `--html`, `--csv`, `--detail`, `--ouvrir` | sorties |
 
 Le rapport indique pour chaque requête si AdGuard l'a **bloquée** (le site a été demandé mais pas
 atteint, si le contrôle parental est actif) ou **autorisée** (le site a été atteint).
+
+### Liste de tous les sites consultés (commande `sites`)
+
+```
+python adguard_analyse.py sites --api http://192.168.1.10:3000 --user admin --password secret ^
+    --client 192.168.1.42 --jours 7 --html sites.html --csv sites.csv
+```
+
+Pour un appareil et une période (bouton « Sites consultés » dans l'interface) : **tous les domaines** demandés,
+du plus fréquent au moins fréquent, avec requêtes, jours, nombre de visites, première et dernière fois,
+heures typiques, catégorie sensible ou application reconnue, sous-domaines ; les **domaines par jour** ; et un
+**journal de navigation** chronologique (une ligne par nouvelle visite d'un domaine, après 30 min sans
+requête vers ce domaine), exporté aussi en CSV. Le bruit publicitaire, technique et système est exclu par
+défaut (`--avec-bruit` pour tout voir). Un domaine inconnu qui revient souvent se repère ici, et
+`test-domaine` ou une recherche web dit ce que c'est.
 
 ### Détail d'activité par application (commande `activite`)
 

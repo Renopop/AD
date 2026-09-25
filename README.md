@@ -157,11 +157,14 @@ python adguard_analyse.py sites --api http://192.168.1.10:3000 --user admin --pa
     --client 192.168.1.42 --jours 7 --html sites.html --csv sites.csv
 ```
 
-Pour un appareil et une période (bouton « Sites consultés » dans l'interface) : **tous les domaines** demandés,
+Pour un appareil, **ou pour tous les appareils si aucun n'est indiqué** (bouton « Sites consultés » dans
+l'interface, champ appareil vide) : **tous les domaines** demandés,
 du plus fréquent au moins fréquent, avec requêtes, jours, nombre de visites, première et dernière fois,
 heures typiques, catégorie sensible ou application reconnue, sous-domaines ; les **domaines par jour** ; et un
 **journal de navigation** chronologique (une ligne par nouvelle visite d'un domaine, après 30 min sans
-requête vers ce domaine), exporté aussi en CSV. Le bruit publicitaire, technique et système est exclu par
+requête vers ce domaine), exporté aussi en CSV. Avec plusieurs appareils, le tableau indique quel appareil a
+demandé chaque domaine, une section détaille les domaines de chaque appareil, et le journal et le CSV portent
+l'appareil sur chaque ligne. Le bruit publicitaire, technique et système est exclu par
 défaut (`--avec-bruit` pour tout voir). Un domaine inconnu qui revient souvent se repère ici, et
 `test-domaine` ou une recherche web dit ce que c'est.
 

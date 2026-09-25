@@ -156,7 +156,7 @@ class App(object):
         self.open_html = tk.BooleanVar(value=True)
         ttk.Checkbutton(act, text="ouvrir le rapport HTML dans le navigateur", variable=self.open_html).pack(side="left", padx=8)
         ttk.Button(act, text="Détail d'activité (applis)", command=self.run_activity).pack(side="left")
-        ttk.Button(act, text="Sites consultés", command=self.run_sites).pack(side="left", padx=8)
+        ttk.Button(act, text="Sites consultés (appareil choisi, ou tous)", command=self.run_sites).pack(side="left", padx=8)
         ttk.Button(act, text="Ouvrir le dernier rapport", command=self._open_last).pack(side="left", padx=8)
         ttk.Button(act, text="Exporter CSV (Excel)", command=self.export_csv).pack(side="left", padx=8)
         ttk.Button(act, text="Enregistrer les paramètres", command=self._save_config).pack(side="right")
@@ -383,10 +383,7 @@ class App(object):
         except ValueError as e:
             messagebox.showerror("Paramètres", str(e))
             return
-        if not job.clients:
-            messagebox.showinfo("Appareil", "Choisissez d'abord un appareil (IP ou nom) : la liste des sites porte sur un seul appareil.")
-            return
-        job.activity = True
+        job.activity = True   # appareil vide = tous les appareils
 
         def work():
             try:

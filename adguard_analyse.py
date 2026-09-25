@@ -1060,7 +1060,7 @@ class Analysis(object):
             if self.selected_hosts is not None:
                 self.selected_hosts[base_domain(e.host)] += 1
             if self.all_records is not None:
-                self.all_records.append((local, e.host))
+                self.all_records.append((local, e.host, e.client, self.display_name(e.client, names)))
             if category is None:
                 continue
             self.records.append(Record(e, local, self.display_name(e.client, names), category, source, detail))
@@ -1246,7 +1246,7 @@ def build_report(analysis, threshold_days=3, gap_minutes=10, top=25, top_sites=0
 
 def build_activity(analysis, gap_minutes=10, top_other=30):
     """Chronologie d'usage par application pour le client sélectionné (toutes requêtes DNS)."""
-    recs = sorted(analysis.all_records or [], key=lambda r: r[0])
+    recs = [(r[0], r[1]) for r in sorted(analysis.all_records or [], key=lambda r: r[0])]
     gap = dt.timedelta(minutes=gap_minutes)
     apps = {}
     other = collections.Counter()
@@ -1297,7 +1297,7 @@ def build_activity(analysis, gap_minutes=10, top_other=30):
 
 def build_app_detail(analysis, app_name, gap_minutes=10, night=(22 * 60, 6 * 60), burst_min=5):
     """Détail maximal pour une appli (WhatsApp par défaut) : par jour, par heure, sous-domaines, événements."""
-    recs = [(t, h) for t, h in sorted(analysis.all_records or [], key=lambda r: r[0]) if app_of_host(h) == app_name]
+    recs = [(r[0], r[1]) for r in sorted(analysis.all_records or [], key=lambda r: r[0]) if app_of_host(r[1]) == app_name]
     if not recs:
         return None
     gap = dt.timedelta(minutes=gap_minutes)
@@ -1478,44 +1478,64 @@ SYSTEM_APPS = {"Apple / iCloud (système)", "Microsoft (système)"}
 
 
 def build_sites(analysis, gap_minutes=30, with_noise=False):
-    """Tous les sites consultés par le client sélectionné : par domaine, et journal de navigation chronologique."""
+    """Tous les sites consultés (un appareil, ou tous) : par domaine, par appareil, et journal chronologique."""
     recs = sorted(analysis.all_records or [], key=lambda r: r[0])
     gap = dt.timedelta(minutes=gap_minutes)
     sites = {}
     journal = []
-    for t, host in recs:
+    last_seen = {}          # (appareil, domaine) -> dernière requête, pour compter les visites par appareil
+    devices = {}            # ip -> {"name", "count", "domains": Counter, "first", "last"}
+    for t, host, ip, name in recs:
         app = app_of_host(host)
         if not with_noise and app in NOISE_APPS | SYSTEM_APPS:
             continue
         base = base_domain(host)
+        dev = devices.get(ip)
+        if dev is None:
+            dev = devices[ip] = {"ip": ip, "name": name, "count": 0, "domains": collections.Counter(), "first": t, "last": t}
+        dev["count"] += 1
+        dev["domains"][base] += 1
+        dev["last"] = t
         st = sites.get(base)
         if st is None:
             st = sites[base] = {"domain": base, "count": 0, "days": set(), "first": t, "last": t, "hours": collections.Counter(),
                                 "hosts": collections.Counter(), "app": app, "category": analysis.classifier.classify(host)[0],
-                                "visits": 0}
+                                "visits": 0, "devices": collections.Counter()}
         st["count"] += 1
         st["days"].add(t.date())
         st["hours"][t.hour] += 1
         st["hosts"][host] += 1
+        st["devices"][ip] += 1
         if st["category"] is None:
             st["category"] = analysis.classifier.classify(host)[0]
-        if t - st["last"] > gap or st["visits"] == 0:
+        key = (ip, base)
+        prev = last_seen.get(key)
+        if prev is None or t - prev > gap:
             st["visits"] += 1
-            journal.append((t, base, host, st["category"], app))
+            journal.append((t, base, host, st["category"], app, ip, name))
+        last_seen[key] = t
         st["last"] = t
     ordered = sorted(sites.values(), key=lambda x: (-x["count"], x["domain"]))
     per_day = collections.defaultdict(set)
-    for t, base, host, cat, app in journal:
-        per_day[t.date()].add(base)
+    for row in journal:
+        per_day[row[0].date()].add(row[1])
+    dev_list = sorted(devices.values(), key=lambda d: -d["count"])
     return {"sites": ordered, "journal": journal, "per_day": per_day, "gap_minutes": gap_minutes,
             "warnings": coverage_warnings(analysis), "period_first": analysis.period_first, "period_last": analysis.period_last,
-            "with_noise": with_noise, "total": len(recs),
-            "client": (analysis.filters.clients[0] if analysis.filters.clients else "?")}
+            "with_noise": with_noise, "total": len(recs), "devices": dev_list, "multi": len(dev_list) > 1,
+            "client": (analysis.filters.clients[0] if analysis.filters.clients else "tous les appareils")}
+
+
+def _dev_label(res, ip):
+    for d in res["devices"]:
+        if d["ip"] == ip:
+            return d["name"] if d["name"] and d["name"] != ip else ip
+    return ip
 
 
 def render_sites_text(res, filters, limit=0):
     out = []
-    out.append("SITES CONSULTÉS - appareil %s" % res["client"])
+    out.append("SITES CONSULTÉS - %s" % res["client"])
     out.append("=" * 78)
     for p in describe_filters(filters)[:-1]:
         out.append("  - " + p)
@@ -1529,19 +1549,36 @@ def render_sites_text(res, filters, limit=0):
         out.append("ATTENTION : " + w)
     if not res["sites"]:
         out.append("")
-        out.append("Aucune requête pour cet appareil sur la période.")
+        out.append("Aucune requête sur la période.")
         return "\n".join(out)
+    if res["multi"]:
+        out.append("")
+        out.append("APPAREILS (%d)" % len(res["devices"]))
+        out.append("-" * 78)
+        for d in res["devices"]:
+            out.append("  %-16s %-28s %6d req.  %4d domaines  du %s au %s"
+                       % (d["ip"], (d["name"] if d["name"] != d["ip"] else "")[:28], d["count"], len(d["domains"]),
+                          d["first"].strftime("%d/%m %H:%M"), d["last"].strftime("%d/%m %H:%M")))
     out.append("")
     out.append("TOUS LES DOMAINES (du plus demandé au moins demandé)")
     out.append("-" * 78)
-    out.append("  %-40s %6s %5s %6s  %-16s %-16s %s" % ("domaine", "req.", "jours", "visites", "première", "dernière", "catégorie / appli"))
+    out.append("  %-40s %6s %5s %6s  %-12s %-12s %-22s %s" % ("domaine", "req.", "jours", "visites", "première", "dernière", "catégorie / appli",
+                                                             "appareils" if res["multi"] else ""))
     rows = res["sites"][:limit] if limit else res["sites"]
     for st in rows:
         tag = ("!! " + CATEGORY_LABELS.get(st["category"], st["category"])) if st["category"] else (st["app"] or "")
-        out.append("  %-40s %6d %5d %6d  %-16s %-16s %s" % (st["domain"][:40], st["count"], len(st["days"]), st["visits"],
-                                                            st["first"].strftime("%d/%m %H:%M"), st["last"].strftime("%d/%m %H:%M"), tag))
+        devs = ", ".join("%s(%d)" % (_dev_label(res, ip), n) for ip, n in st["devices"].most_common(4)) if res["multi"] else ""
+        out.append("  %-40s %6d %5d %6d  %-12s %-12s %-22s %s" % (st["domain"][:40], st["count"], len(st["days"]), st["visits"],
+                                                               st["first"].strftime("%d/%m %H:%M"), st["last"].strftime("%d/%m %H:%M"), tag[:22], devs))
     if limit and len(res["sites"]) > limit:
         out.append("  ... (%d domaines au total, voir le HTML ou le CSV)" % len(res["sites"]))
+    if res["multi"]:
+        out.append("")
+        out.append("DOMAINES PAR APPAREIL (les 40 plus demandés par appareil)")
+        out.append("-" * 78)
+        for d in res["devices"]:
+            out.append("  %s %s (%d domaines) :" % (d["ip"], ("(%s)" % d["name"]) if d["name"] != d["ip"] else "", len(d["domains"])))
+            out.append("    " + ", ".join("%s(%d)" % (dom, n) for dom, n in d["domains"].most_common(40)))
     out.append("")
     out.append("DOMAINES PAR JOUR")
     out.append("-" * 78)
@@ -1551,9 +1588,10 @@ def render_sites_text(res, filters, limit=0):
     out.append("")
     out.append("JOURNAL DE NAVIGATION (chaque nouvelle visite d'un domaine)")
     out.append("-" * 78)
-    for t, base, host, cat, app in res["journal"][-400:]:
+    for t, base, host, cat, app, ip, name in res["journal"][-400:]:
         tag = ("!! " + CATEGORY_LABELS.get(cat, cat)) if cat else (app or "")
-        out.append("  %s %s  %-40s %s" % (WEEKDAYS_FR[t.weekday()], fmt_dt(t), base[:40], tag))
+        dev = ("  [%s]" % _dev_label(res, ip)) if res["multi"] else ""
+        out.append("  %s %s  %-40s %s%s" % (WEEKDAYS_FR[t.weekday()], fmt_dt(t), base[:40], tag, dev))
     if len(res["journal"]) > 400:
         out.append("  ... (%d visites au total, voir le HTML ou le CSV)" % len(res["journal"]))
     return "\n".join(out)
@@ -1571,26 +1609,48 @@ def render_sites_html(res, filters):
                                            else "bruit publicitaire, technique et système exclu"))
     for w in res.get("warnings") or []:
         h.append("<div class='warn'>%s</div>" % _esc(w))
+    if res["multi"]:
+        h.append("<h2>Appareils</h2><table><tr><th>IP</th><th>Nom</th><th class='num'>Requêtes</th><th class='num'>Domaines</th><th>Première</th><th>Dernière</th></tr>")
+        for d in res["devices"]:
+            h.append("<tr><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td></tr>"
+                     % (_esc(d["ip"]), _esc(d["name"] if d["name"] != d["ip"] else ""), d["count"], len(d["domains"]),
+                        _esc(fmt_dt(d["first"])), _esc(fmt_dt(d["last"]))))
+        h.append("</table>")
     h.append("<h2>Tous les domaines</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th><th class='num'>Jours</th>"
-             "<th class='num'>Visites</th><th>Première</th><th>Dernière</th><th>Heures typiques</th><th>Catégorie / appli</th><th>Sous-domaines</th></tr>")
+             "<th class='num'>Visites</th><th>Première</th><th>Dernière</th><th>Heures typiques</th><th>Catégorie / appli</th>"
+             + ("<th>Appareils</th>" if res["multi"] else "") + "<th>Sous-domaines</th></tr>")
     for st in res["sites"]:
         tag = _cat_tag(st["category"]) if st["category"] else _esc(st["app"] or "")
-        h.append("<tr><td><b>%s</b></td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><small>%s</small></td></tr>"
+        devs = ("<td><small>%s</small></td>" % _esc(", ".join("%s (%d)" % (_dev_label(res, ip), n) for ip, n in st["devices"].most_common()))) if res["multi"] else ""
+        h.append("<tr><td><b>%s</b></td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s<td><small>%s</small></td></tr>"
                  % (_esc(st["domain"]), st["count"], len(st["days"]), st["visits"], _esc(fmt_dt(st["first"])), _esc(fmt_dt(st["last"])),
-                    _esc(", ".join(typical_slots(st["hours"])) or "-"), tag,
+                    _esc(", ".join(typical_slots(st["hours"])) or "-"), tag, devs,
                     _esc(", ".join("%s (%d)" % (k, v) for k, v in st["hosts"].most_common(3)))))
     h.append("</table>")
+    if res["multi"]:
+        h.append("<h2>Domaines par appareil</h2>")
+        for d in res["devices"]:
+            h.append("<details><summary>%s %s &ndash; %d domaines, %d requêtes</summary><table><tr><th>Domaine</th><th class='num'>Requêtes</th><th>Catégorie / appli</th></tr>"
+                     % (_esc(d["ip"]), _esc(("(%s)" % d["name"]) if d["name"] != d["ip"] else ""), len(d["domains"]), d["count"]))
+            site_by_dom = {st["domain"]: st for st in res["sites"]}
+            for dom, n in d["domains"].most_common():
+                st = site_by_dom.get(dom)
+                tag = (_cat_tag(st["category"]) if st and st["category"] else _esc(st["app"] if st and st["app"] else ""))
+                h.append("<tr><td>%s</td><td class='num'>%d</td><td>%s</td></tr>" % (_esc(dom), n, tag))
+            h.append("</table></details>")
     h.append("<h2>Domaines par jour</h2><table><tr><th>Date</th><th class='num'>Domaines</th><th>Liste</th></tr>")
     for day in sorted(res["per_day"]):
         doms = sorted(res["per_day"][day])
         h.append("<tr><td>%s %s</td><td class='num'>%d</td><td><small>%s</small></td></tr>"
                  % (_esc(fmt_date(day)), WEEKDAYS_FR_LONG[day.weekday()], len(doms), _esc(", ".join(doms))))
     h.append("</table>")
-    h.append("<h2>Journal de navigation</h2><table><tr><th>Jour</th><th>Date / heure</th><th>Domaine</th><th>Sous-domaine demandé</th><th>Catégorie / appli</th></tr>")
-    for t, base, host, cat, app in res["journal"]:
+    h.append("<h2>Journal de navigation</h2><table><tr><th>Jour</th><th>Date / heure</th>" + ("<th>Appareil</th>" if res["multi"] else "")
+             + "<th>Domaine</th><th>Sous-domaine demandé</th><th>Catégorie / appli</th></tr>")
+    for t, base, host, cat, app, ip, name in res["journal"]:
         tag = _cat_tag(cat) if cat else _esc(app or "")
-        h.append("<tr><td>%s</td><td>%s</td><td><b>%s</b></td><td><small>%s</small></td><td>%s</td></tr>"
-                 % (WEEKDAYS_FR_LONG[t.weekday()], _esc(fmt_dt(t)), _esc(base), _esc(host), tag))
+        dev = ("<td>%s</td>" % _esc(_dev_label(res, ip))) if res["multi"] else ""
+        h.append("<tr><td>%s</td><td>%s</td>%s<td><b>%s</b></td><td><small>%s</small></td><td>%s</td></tr>"
+                 % (WEEKDAYS_FR_LONG[t.weekday()], _esc(fmt_dt(t)), dev, _esc(base), _esc(host), tag))
     h.append("</table></div></body></html>")
     return "\n".join(h)
 
@@ -1598,10 +1658,10 @@ def render_sites_html(res, filters):
 def write_sites_csv(res, path):
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
-        w.writerow(["date", "heure", "jour", "domaine", "sous_domaine", "categorie", "application"])
-        for t, base, host, cat, app in res["journal"]:
-            w.writerow([t.strftime("%Y-%m-%d"), t.strftime("%H:%M:%S"), WEEKDAYS_FR[t.weekday()], base, host,
-                        CATEGORY_LABELS.get(cat, cat) if cat else "", app or ""])
+        w.writerow(["date", "heure", "jour", "appareil_ip", "appareil_nom", "domaine", "sous_domaine", "categorie", "application"])
+        for t, base, host, cat, app, ip, name in res["journal"]:
+            w.writerow([t.strftime("%Y-%m-%d"), t.strftime("%H:%M:%S"), WEEKDAYS_FR[t.weekday()], ip, name if name != ip else "",
+                        base, host, CATEGORY_LABELS.get(cat, cat) if cat else "", app or ""])
 
 
 def render_activity_text(act, filters):
@@ -1721,7 +1781,8 @@ def write_activity_csv(analysis, path):
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
         w.writerow(["date", "heure", "jour", "application", "domaine", "indice"])
-        for t, host in sorted(analysis.all_records or [], key=lambda r: r[0]):
+        for r in sorted(analysis.all_records or [], key=lambda r: r[0]):
+            t, host = r[0], r[1]
             w.writerow([t.strftime("%Y-%m-%d"), t.strftime("%H:%M:%S"), WEEKDAYS_FR[t.weekday()],
                         app_of_host(host) or "", host, host_hint(host)[1] or ""])
 
@@ -2300,7 +2361,7 @@ def build_parser():
 
     p.add_argument("commande", nargs="?", default="rapport", choices=["rapport", "clients", "activite", "sites", "test-domaine", "gui"],
                    help="rapport (défaut) | clients : lister les appareils | activite : chronologie d'usage par appli "
-                        "d'un appareil | sites : tous les sites consultés par un appareil (--client obligatoire) | "
+                        "d'un appareil (--client obligatoire) | sites : tous les sites consultés, par un appareil ou par tous | "
                         "test-domaine : tester la classification | gui")
     p.add_argument("domaines", nargs="*", help="domaines à tester avec la commande test-domaine")
     return p
@@ -2410,8 +2471,8 @@ def main(argv=None):
         if not job.api_url and not job.log_paths:
             parser.error("indiquez une source : --api URL --user U --password P  ou  --log querylog.json")
         if args.commande in ("activite", "sites"):
-            if not job.clients:
-                parser.error("la commande %s demande un appareil : --client IP" % args.commande)
+            if args.commande == "activite" and not job.clients:
+                parser.error("la commande activite demande un appareil : --client IP")
             job.activity = True
             job.with_noise = args.avec_bruit
         progress = lambda m: print("  [..] " + m, file=sys.stderr)

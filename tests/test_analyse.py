@@ -517,6 +517,7 @@ class TestSites(unittest.TestCase):
         ph = [x for x in res["sites"] if x["domain"] == "pornhub.com"][0]
         self.assertEqual(ph["category"], "porno")
         self.assertEqual(len(res["journal"]), 5)
+        self.assertFalse(res["multi"])
         res2 = core.build_sites(a, gap_minutes=30, with_noise=True)
         self.assertIn("app-measurement.com", [x["domain"] for x in res2["sites"]])
         txt = core.render_sites_text(res, a.filters)
@@ -562,3 +563,41 @@ class TestConservation(unittest.TestCase):
         self.assertIn("24 heures", warns[1])
         rep = core.build_report(a)
         self.assertTrue(any("conservation" in w for w in rep["warnings"]))
+
+
+class TestSitesTousAppareils(unittest.TestCase):
+    def test_multi_appareils(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 9, 5, 20, 0, tzinfo=PARIS)
+        es = [entry(base, "www.wikipedia.org", "10.0.0.5"), entry(base + dt.timedelta(minutes=1), "www.wikipedia.org", "10.0.0.6"),
+              entry(base + dt.timedelta(minutes=2), "fr.pornhub.com", "10.0.0.5"), entry(base + dt.timedelta(minutes=3), "www.lemonde.fr", "10.0.0.6")]
+        a = core.Analysis(core.Filters(tz=PARIS), c, {"10.0.0.6": "PC-Salon"}, keep_all_records=True)
+        a.feed(es)
+        res = core.build_sites(a)
+        self.assertTrue(res["multi"])
+        self.assertEqual(len(res["devices"]), 2)
+        wiki = [x for x in res["sites"] if x["domain"] == "wikipedia.org"][0]
+        self.assertEqual(wiki["visits"], 2)          # une visite par appareil
+        self.assertEqual(set(wiki["devices"]), {"10.0.0.5", "10.0.0.6"})
+        txt = core.render_sites_text(res, a.filters)
+        self.assertIn("APPAREILS (2)", txt)
+        self.assertIn("PC-Salon", txt)
+        self.assertIn("DOMAINES PAR APPAREIL", txt)
+        html_out = core.render_sites_html(res, a.filters)
+        self.assertIn("Domaines par appareil", html_out)
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "s.csv")
+            core.write_sites_csv(res, p)
+            with open(p, encoding="utf-8-sig") as fh:
+                lines = fh.read().splitlines()
+            self.assertEqual(len(lines), 5)
+            self.assertIn("appareil_ip", lines[0])
+
+    def test_cli_sites_sans_client(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "querylog.json")
+            subprocess.check_call([sys.executable, os.path.join(ROOT, "exemples", "generer_exemple.py"), log, "--jours", "2"])
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "adguard_analyse.py"), "sites", "--log", log, "--tz", "+02:00"],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            self.assertIn("APPAREILS (3)", out.stdout.decode("utf-8"))

@@ -1209,6 +1209,7 @@ def build_report(analysis, threshold_days=3, gap_minutes=10, top=25, top_sites=0
 
     return {
         "top_sites": top_sites_rows,
+        "multi_device": len({r.client for r in recs}) > 1,
         "generated": dt.datetime.now(),
         "filters": f,
         "n_days": n_days,
@@ -1819,6 +1820,13 @@ def coverage_warnings(analysis):
     return warns
 
 
+def device_label(client_ip, client_name=None):
+    """Étiquette d'appareil pour les rapports : 'nom [IP]' si un nom existe, sinon l'IP seule."""
+    if client_name and client_name != client_ip:
+        return "%s [%s]" % (client_name, client_ip)
+    return client_ip or "?"
+
+
 def describe_filters(f):
     parts = []
     if f.since is not None and f.until is not None:
@@ -1944,6 +1952,11 @@ def render_text(rep, detail=False):
             out.append("  %-28s %6d requêtes, dont %d bloquées par AdGuard, %d autorisées"
                        % (CATEGORY_LABELS.get(cat, cat) + " :", n, rep["blocked_by_cat"].get(cat, 0),
                           n - rep["blocked_by_cat"].get(cat, 0)))
+    if rep["multi_device"]:
+        out.append("")
+        out.append("NB : ce rapport agrège %d appareils (%s). Chaque ligne ci-dessous indique l'appareil concerné ;"
+                   % (len(rep["selected_clients"]), ", ".join(rep["selected_clients"].values())))
+        out.append("     pour n'analyser qu'un seul appareil, relancez avec --client <IP>.")
     if total_sensitive == 0:
         out.append("")
         out.append("Aucune activité sensible détectée avec les filtres choisis.")
@@ -1955,7 +1968,8 @@ def render_text(rep, detail=False):
     if not rep["recurrent"]:
         out.append("Aucune (essayez --seuil-recurrence 2 ou une période plus longue).")
     for s in rep["recurrent"][:rep["top"]]:
-        out.append("%s  [%s]" % (s["domain"], CATEGORY_LABELS.get(s["category"], s["category"])))
+        out.append("%s  [%s]  appareil : %s" % (s["domain"], CATEGORY_LABELS.get(s["category"], s["category"]),
+                                                device_label(s["client"], s.get("client_name"))))
         out.append("    %d jours sur %d, %d requêtes (%d bloquées), créneaux : %s, jours : %s"
                    % (len(s["days"]), rep["n_days"], s["count"], s["blocked"],
                       ", ".join(typical_slots(s["hours"])) or "-",
@@ -1992,10 +2006,11 @@ def render_text(rep, detail=False):
     out.append("")
     out.append("SITES LES PLUS CONSULTÉS")
     out.append("-" * 78)
-    out.append("  %-34s %-14s %5s %5s %6s  %s" % ("domaine", "catégorie", "jours", "req.", "bloq.", "dernière fois"))
+    out.append("  %-30s %-12s %5s %5s %6s  %-18s %s" % ("domaine", "catégorie", "jours", "req.", "bloq.", "dernière fois", "appareil"))
     for s in sorted(rep["domain_stats"], key=lambda x: -x["count"])[:rep["top"]]:
-        out.append("  %-34s %-14s %5d %5d %6d  %s" % (s["domain"][:34], s["category"], len(s["days"]),
-                                                     s["count"], s["blocked"], fmt_dt(s["last"])))
+        out.append("  %-30s %-12s %5d %5d %6d  %-18s %s" % (s["domain"][:30], s["category"][:12], len(s["days"]),
+                                                     s["count"], s["blocked"], fmt_dt(s["last"]),
+                                                     device_label(s["client"], s.get("client_name"))))
 
     out.append("")
     out.append("ACTIVITÉ PAR JOUR")
@@ -2013,8 +2028,9 @@ def render_text(rep, detail=False):
     for s in rep["sessions"][-100:]:
         dur = (s["end"] - s["start"]).total_seconds()
         doms = ", ".join("%s(%d)" % (d, n) for d, n in s["domains"].most_common(4))
-        out.append("  %s %s -> %s  (%s, %d req., %d bloquées) [%s] %s"
-                   % (WEEKDAYS_FR[s["start"].weekday()], fmt_dt(s["start"]), s["end"].strftime("%H:%M:%S"),
+        out.append("  %-22s %s %s -> %s  (%s, %d req., %d bloquées) [%s] %s"
+                   % (device_label(s["client"], s.get("client_name")), WEEKDAYS_FR[s["start"].weekday()],
+                      fmt_dt(s["start"]), s["end"].strftime("%H:%M:%S"),
                       fmt_duration(dur), s["count"], s["blocked"], ",".join(sorted(s["categories"])), doms))
     if len(rep["sessions"]) > 100:
         out.append("  ... (%d sessions au total, voir le rapport HTML ou le CSV)" % len(rep["sessions"]))
@@ -2102,14 +2118,19 @@ def render_html(rep, detail=True):
         h.append("</div></body></html>")
         return "\n".join(h)
 
+    if rep["multi_device"]:
+        h.append("<div class='warn'>Ce rapport agrège %d appareils (%s). La colonne « Appareil » de chaque tableau "
+                 "indique lequel est concerné ; pour n'en analyser qu'un, relancez avec --client &lt;IP&gt;.</div>"
+                 % (len(rep["selected_clients"]), _esc(", ".join(rep["selected_clients"].values()))))
     h.append("<h2>Activités récurrentes <small>(vues au moins %d jours différents)</small></h2>" % rep["threshold_days"])
     if rep["recurrent"]:
-        h.append("<table><tr><th>Domaine</th><th>Catégorie</th><th class='num'>Jours</th><th class='num'>Requêtes</th>"
+        h.append("<table><tr><th>Domaine</th><th>Appareil</th><th>Catégorie</th><th class='num'>Jours</th><th class='num'>Requêtes</th>"
                  "<th class='num'>Bloquées</th><th>Créneaux typiques</th><th>Jours de la semaine</th><th>Première</th><th>Dernière</th></tr>")
         for s in rep["recurrent"][:rep["top"]]:
-            h.append("<tr><td>%s</td><td>%s</td><td class='num'>%d / %d</td><td class='num'>%d</td><td class='num'>%d</td>"
+            h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d / %d</td><td class='num'>%d</td><td class='num'>%d</td>"
                      "<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
-                     % (_esc(s["domain"]), _cat_tag(s["category"]), len(s["days"]), rep["n_days"], s["count"], s["blocked"],
+                     % (_esc(s["domain"]), _esc(device_label(s["client"], s.get("client_name"))), _cat_tag(s["category"]),
+                        len(s["days"]), rep["n_days"], s["count"], s["blocked"],
                         _esc(", ".join(typical_slots(s["hours"])) or "-"),
                         _esc(", ".join("%s (%d)" % (WEEKDAYS_FR[d], n) for d, n in sorted(s["weekdays"].items()))),
                         _esc(fmt_dt(s["first"])), _esc(fmt_dt(s["last"]))))
@@ -2145,13 +2166,14 @@ def render_html(rep, detail=True):
     h.append("</table>")
 
     h.append("<h2>Sites consultés</h2>")
-    h.append("<table><tr><th>Domaine</th><th>Catégorie</th><th class='num'>Jours</th><th class='num'>Requêtes</th>"
+    h.append("<table><tr><th>Domaine</th><th>Appareil</th><th>Catégorie</th><th class='num'>Jours</th><th class='num'>Requêtes</th>"
              "<th class='num'>Bloquées</th><th>Détection</th><th>Sous-domaines vus</th><th>Dernière fois</th></tr>")
     for s in sorted(rep["domain_stats"], key=lambda x: -x["count"])[:rep["top"] * 2]:
         hosts = ", ".join("%s (%d)" % (hh, n) for hh, n in s["hosts"].most_common(3))
-        h.append("<tr><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td>"
+        h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td>"
                  "<td><small>%s : %s</small></td><td><small>%s</small></td><td>%s</td></tr>"
-                 % (_esc(s["domain"]), _cat_tag(s["category"]), len(s["days"]), s["count"], s["blocked"],
+                 % (_esc(s["domain"]), _esc(device_label(s["client"], s.get("client_name"))), _cat_tag(s["category"]),
+                    len(s["days"]), s["count"], s["blocked"],
                     _esc(s["source"]), _esc(s["detail"]), _esc(hosts), _esc(fmt_dt(s["last"]))))
     h.append("</table>")
 
@@ -2168,13 +2190,14 @@ def render_html(rep, detail=True):
     h.append("</table>")
 
     h.append("<h2>Sessions <small>(requêtes sensibles espacées de moins de %d min)</small></h2>" % rep["gap_minutes"])
-    h.append("<table><tr><th>Jour</th><th>Début</th><th>Fin</th><th>Durée</th><th class='num'>Requêtes</th>"
+    h.append("<table><tr><th>Appareil</th><th>Jour</th><th>Début</th><th>Fin</th><th>Durée</th><th class='num'>Requêtes</th>"
              "<th class='num'>Bloquées</th><th>Catégories</th><th>Domaines</th></tr>")
     for s in rep["sessions"]:
         dur = (s["end"] - s["start"]).total_seconds()
         doms = ", ".join("%s (%d)" % (d, n) for d, n in s["domains"].most_common(5))
-        h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td></tr>"
-                 % (WEEKDAYS_FR_LONG[s["start"].weekday()], _esc(fmt_dt(s["start"])), _esc(s["end"].strftime("%H:%M:%S")),
+        h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td></tr>"
+                 % (_esc(device_label(s["client"], s.get("client_name"))), WEEKDAYS_FR_LONG[s["start"].weekday()],
+                    _esc(fmt_dt(s["start"])), _esc(s["end"].strftime("%H:%M:%S")),
                     _esc(fmt_duration(dur)), s["count"], s["blocked"],
                     " ".join(_cat_tag(c) for c in sorted(s["categories"])), _esc(doms)))
     h.append("</table>")
@@ -2188,10 +2211,10 @@ def render_html(rep, detail=True):
 
     if detail:
         h.append("<h2>Détail des requêtes</h2><details><summary>Afficher les %d requêtes</summary>" % len(rep["records"]))
-        h.append("<table><tr><th>Date/heure</th><th>Catégorie</th><th>Domaine demandé</th><th>Résultat AdGuard</th><th>Détection</th></tr>")
+        h.append("<table><tr><th>Date/heure</th><th>Appareil</th><th>Catégorie</th><th>Domaine demandé</th><th>Résultat AdGuard</th><th>Détection</th></tr>")
         for r in rep["records"]:
-            h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='%s'>%s</td><td><small>%s : %s</small></td></tr>"
-                     % (_esc(fmt_dt(r.time)), _cat_tag(r.category), _esc(r.host), "blk" if r.blocked else "ok",
+            h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='%s'>%s</td><td><small>%s : %s</small></td></tr>"
+                     % (_esc(fmt_dt(r.time)), _esc(device_label(r.client, r.client_name)), _cat_tag(r.category), _esc(r.host), "blk" if r.blocked else "ok",
                         _esc(REASON_LABELS.get(r.reason, r.reason)), _esc(r.source), _esc(r.detail)))
         h.append("</table></details>")
 

@@ -601,3 +601,55 @@ class TestSitesTousAppareils(unittest.TestCase):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "adguard_analyse.py"), "sites", "--log", log, "--tz", "+02:00"],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             self.assertIn("APPAREILS (3)", out.stdout.decode("utf-8"))
+
+
+class TestFideliteAppareils(unittest.TestCase):
+    """Garantit que le rapport ne mélange pas les IP : chaque ligne porte son appareil."""
+    def setUp(self):
+        self.c = make_classifier()
+        base = dt.datetime(2026, 9, 1, 22, 30, tzinfo=PARIS)
+        self.entries = []
+        for day in range(3):
+            d0 = base + dt.timedelta(days=day)
+            self.entries.append(entry(d0, "fr.pornhub.com", "192.168.1.42", 5, True))
+            self.entries.append(entry(d0 + dt.timedelta(minutes=1), "fr.pornhub.com", "192.168.1.20"))
+
+    def _report(self, clients=None):
+        job = core.Job(); job.tz = "+02:00"
+        if clients:
+            job.clients = clients
+        a = core.Analysis(core.build_filters(job), self.c)
+        a.feed(self.entries)
+        return a, core.build_report(a, threshold_days=2)
+
+    def test_device_label(self):
+        self.assertEqual(core.device_label("192.168.1.42", "iPhone-Ado"), "iPhone-Ado [192.168.1.42]")
+        self.assertEqual(core.device_label("192.168.1.42", "192.168.1.42"), "192.168.1.42")
+        self.assertEqual(core.device_label("192.168.1.42", None), "192.168.1.42")
+
+    def test_multi_device_separe_les_ip(self):
+        a, rep = self._report()
+        self.assertTrue(rep["multi_device"])
+        # deux lignes de récurrence pour le même domaine, une par IP, chacune étiquetée
+        clients = {s["client"] for s in rep["recurrent"] if s["domain"] == "pornhub.com"}
+        self.assertEqual(clients, {"192.168.1.42", "192.168.1.20"})
+        txt = core.render_text(rep)
+        self.assertIn("appareil : 192.168.1.42", txt)
+        self.assertIn("appareil : 192.168.1.20", txt)
+        self.assertIn("agrège 2 appareils", txt)
+        html_out = core.render_html(rep)
+        self.assertIn("agrège 2 appareils", html_out)
+        self.assertIn("<th>Appareil</th>", html_out)
+        # chaque session porte bien un seul client
+        for s in rep["sessions"]:
+            self.assertIn(s["client"], ("192.168.1.42", "192.168.1.20"))
+            self.assertTrue(all(r_client == s["client"] for r_client in [s["client"]]))
+
+    def test_un_seul_appareil_pas_de_note(self):
+        a, rep = self._report(clients=["192.168.1.42"])
+        self.assertFalse(rep["multi_device"])
+        txt = core.render_text(rep)
+        self.assertNotIn("agrège", txt)
+        # seules les données de .42 sont présentes
+        self.assertTrue(all(s["client"] == "192.168.1.42" for s in rep["domain_stats"]))
+        self.assertTrue(all(s["client"] == "192.168.1.42" for s in rep["sessions"]))

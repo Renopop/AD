@@ -157,14 +157,27 @@ APP_SIGNATURES = {
         "vungle.com", "inmobi.com", "moatads.com", "adcolony.com", "adnxs.com", "criteo.com", "criteo.net", "rubiconproject.com",
         "pubmatic.com", "openx.net", "taboola.com", "outbrain.com", "scorecardresearch.com", "demdex.net", "omtrdc.net",
         "adsrvr.org", "casalemedia.com", "smartadserver.com", "bidswitch.net", "liftoff.io", "tapjoy.com", "fyber.com",
-        "singular.net", "kochava.com", "braze.com", "appboy.com", "appboycdn.com", "hotjar.com", "datadoghq.com",
-        "bugsnag.com", "newrelic.com", "nr-data.net", "flurry.com", "adform.net", "yieldmo.com", "sharethrough.com"],
+        "singular.net", "kochava.com", "braze.com", "braze.eu", "appboy.com", "appboycdn.com", "hotjar.com", "datadoghq.com",
+        "bugsnag.com", "newrelic.com", "nr-data.net", "flurry.com", "adform.net", "yieldmo.com", "sharethrough.com",
+        # régies, SDK pub et vérification vus dans la pile pub des applis (Vinted et autres)
+        "rokt.com", "mparticle.com", "inmobicdn.net", "vervegroupinc.net", "presage.io", "ogury.io", "inner-active.mobi",
+        "pubnative.net", "lijit.com", "liftoff-creatives.io", "doubleverify.com", "safedk.com", "geoedge.be", "sojern.com",
+        "2mdn.net", "adtrafficquality.google", "imptracking.com", "4dvertible.com", "xpln.tech", "ogyfmts.com",
+        "tk0x1.com", "ov1o.com", "trafanalyzer.com", "app-ads-services.com", "app-analytics-services.com",
+        "app-analytics-services-att.com", "datadome.co", "incognia.com", "googletagmanager.com", "googletagservices.com",
+        "googletagservices.com", "2o7.net", "demdex.net", "adsafeprotected.com", "serving-sys.com", "smartadserver.com",
+        # consentement / confidentialité (bandeaux cookies)
+        "iabtechnologylab.com", "onetrust.io", "onetrust.com", "cookielaw.org", "truste.com", "trustarc.com",
+        "privacy-center.org", "sourcepoint.mgr.consensu.org", "didomi.io", "smart-tribune.com",
+        # mesure d'audience
+        "xiti.com", "atinternet.com", "ampproject.org"],
     "Infrastructure / CDN (bruit technique)": [
         "akamai.net", "akamaiedge.net", "akamaized.net", "akamaihd.net", "edgekey.net", "edgesuite.net", "cloudfront.net",
         "amazonaws.com", "cloudflare.com", "cloudflare.net", "fastly.net", "fastlylb.net", "azureedge.net", "azure.com",
         "windows.net", "llnwd.net", "cdn77.org", "jsdelivr.net", "unpkg.com", "gvt1.com", "gvt2.com", "1e100.net",
         "ntp.org", "pool.ntp.org", "digicert.com", "letsencrypt.org", "globalsign.com", "sectigo.com", "pki.goog",
-        "apple-dns.net", "captive.apple.com", "msftncsi.com", "connectivitycheck.gstatic.com", "in-addr.arpa", "ip6.arpa"],
+        "apple-dns.net", "captive.apple.com", "msftncsi.com", "connectivitycheck.gstatic.com", "in-addr.arpa", "ip6.arpa",
+        "akadns.net", "tm-azurefd.net", "website-files.com", "idms-apple.com"],
 }
 NOISE_APPS = {"Publicité / mesure d'audience (bruit des applis)", "Infrastructure / CDN (bruit technique)"}
 

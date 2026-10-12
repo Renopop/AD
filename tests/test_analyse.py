@@ -653,3 +653,30 @@ class TestFideliteAppareils(unittest.TestCase):
         # seules les données de .42 sont présentes
         self.assertTrue(all(s["client"] == "192.168.1.42" for s in rep["domain_stats"]))
         self.assertTrue(all(s["client"] == "192.168.1.42" for s in rep["sessions"]))
+
+
+class TestBruitPubVinted(unittest.TestCase):
+    """La pile pub d'une appli (ex : Vinted) ne doit pas polluer 'sites' ni étiqueter du porno."""
+    def test_trafanalyzer_pas_porno(self):
+        c = make_classifier()
+        for host in ("trafanalyzer.com", "ad.trafanalyzer.com", "core-b8mf.tk0x1.com", "envoy1.ov1o.com"):
+            self.assertIsNone(c.classify(host)[0], host)
+
+    def test_rafale_pub_filtree(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 10, 2, 22, 40, 51, tzinfo=PARIS)
+        burst = ["www.vinted.com", "vintedapp.com", "apps.rokt.com", "supply.inmobicdn.net",
+                 "sdk.fra-01.braze.eu", "sdk-ads-config-api.prod.cloud.ogury.io", "api.prod.pubnative.net",
+                 "ad.trafanalyzer.com", "core-b8mf.tk0x1.com", "edge.safedk.com", "vast.doubleverify.com",
+                 "compliance.iabtechnologylab.com", "mobile-data.onetrust.io", "choices.trustarc.com"]
+        es = [entry(base + dt.timedelta(seconds=i), h, "192.168.1.42") for i, h in enumerate(burst)]
+        a = core.Analysis(core.Filters(clients=["192.168.1.42"], tz=PARIS), c, keep_all_records=True)
+        a.feed(es)
+        res = core.build_sites(a, gap_minutes=30)   # bruit exclu par défaut
+        doms = {s["domain"] for s in res["sites"]}
+        self.assertIn("vinted.com", doms)
+        for noise in ("trafanalyzer.com", "tk0x1.com", "rokt.com", "ogury.io", "pubnative.net",
+                      "safedk.com", "doubleverify.com", "onetrust.io", "trustarc.com", "inmobicdn.net"):
+            self.assertNotIn(noise, doms, noise)
+        # aucun domaine de la rafale n'est classé sensible
+        self.assertFalse([s for s in res["sites"] if s["category"]])

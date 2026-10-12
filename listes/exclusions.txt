@@ -14,3 +14,9 @@ sexism
 sexisme
 flirtey
 nudeaudio
+
+# Régies publicitaires classées à tort "adulte" par les listes externes (chargées par la pile pub
+# des applis comme Vinted, pas des sites visités). Voir le journal de navigation si besoin.
+trafanalyzer.com
+tk0x1.com
+ov1o.com

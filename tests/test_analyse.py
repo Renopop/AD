@@ -723,3 +723,24 @@ class TestLienVerification(unittest.TestCase):
         self.assertIn('class="chk"', core.render_html(rep))
         res = core.build_sites(a, with_noise=True)
         self.assertIn('class="chk"', core.render_sites_html(res, a.filters))
+
+
+class TestEnrichissement(unittest.TestCase):
+    def test_save_descriptions(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "descriptions.txt"), "w", encoding="utf-8") as fh:
+                fh.write("deja.com = déjà décrit\n")
+            n = core.save_descriptions(d, {"nouveau.com": "Un site de test", "deja.com": "doublon ignoré", "x": ""})
+            self.assertEqual(n, 1)
+            c = core.Classifier(); c.load_directory(d)
+            self.assertEqual(c.describe("www.nouveau.com"), "Un site de test")
+            self.assertEqual(c.describe("deja.com"), "déjà décrit")
+            self.assertEqual(core.save_descriptions(d, {"nouveau.com": "re"}), 0)  # pas de doublon
+
+    def test_save_descriptions_vide(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(core.save_descriptions(d, {}), 0)
+
+    def test_ai_sans_cle(self):
+        with self.assertRaises(RuntimeError):
+            core.ai_describe_domain("exemple.com", "")

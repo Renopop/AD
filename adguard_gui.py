@@ -42,6 +42,8 @@ class App(object):
         self.analysis = None
         self.report = None
         self.last_html = None
+        self.last_sites_res = None
+        self.ai_key = tk.StringVar()
         self._build()
         self._load_config()
         self.root.after(200, self._poll)
@@ -157,6 +159,7 @@ class App(object):
         ttk.Checkbutton(act, text="ouvrir le rapport HTML dans le navigateur", variable=self.open_html).pack(side="left", padx=8)
         ttk.Button(act, text="Détail d'activité (applis)", command=self.run_activity).pack(side="left")
         ttk.Button(act, text="Sites consultés (appareil choisi, ou tous)", command=self.run_sites).pack(side="left", padx=8)
+        ttk.Button(act, text="Enrichir les descriptifs", command=self.enrich_descriptions).pack(side="left")
         ttk.Button(act, text="Ouvrir le dernier rapport", command=self._open_last).pack(side="left", padx=8)
         ttk.Button(act, text="Exporter CSV (Excel)", command=self.export_csv).pack(side="left", padx=8)
         ttk.Button(act, text="Enregistrer les paramètres", command=self._save_config).pack(side="right")
@@ -224,6 +227,7 @@ class App(object):
             "categories": {c: v.get() for c, v in self.cat_vars.items()},
             "threshold": self.threshold.get(), "gap": self.gap.get(), "open_html": self.open_html.get(),
             "top_sites": self.top_sites.get(), "detail_app": self.detail_app.get(),
+            "ai_key": self.ai_key.get(),
             "remember_pw": self.remember_pw.get(),
         }
         if self.remember_pw.get():
@@ -263,6 +267,7 @@ class App(object):
         self.open_html.set(bool(cfg.get("open_html", True)))
         self.top_sites.set(bool(cfg.get("top_sites", True)))
         self.detail_app.set(cfg.get("detail_app", "WhatsApp"))
+        self.ai_key.set(cfg.get("ai_key", ""))
 
     def _job(self, for_clients=False):
         job = core.Job()
@@ -401,6 +406,92 @@ class App(object):
                 self.queue.put(("error", "%s\n%s" % (e, traceback.format_exc() if not isinstance(e, (ValueError, RuntimeError, FileNotFoundError)) else "")))
         self._start(work)
 
+    def enrich_descriptions(self):
+        """Panneau : décrire les domaines sans descriptif du dernier rapport 'sites', et les enregistrer."""
+        import webbrowser
+        res = self.last_sites_res
+        if not res:
+            messagebox.showinfo("Enrichir", "Lancez d'abord « Sites consultés » : j'enrichis les domaines de ce rapport.")
+            return
+        unknown = [st["domain"] for st in res["sites"] if not st.get("description")]
+        if not unknown:
+            messagebox.showinfo("Enrichir", "Tous les domaines du dernier rapport ont déjà un descriptif.")
+            return
+        lists_dir = core.find_lists_directory()
+        if not lists_dir:
+            messagebox.showerror("Enrichir", "Dossier 'listes' introuvable, impossible d'enregistrer.")
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("Enrichir les descriptifs (%d domaines sans description)" % len(unknown))
+        win.geometry("760x560")
+        top = ttk.Frame(win, padding=8); top.pack(fill="x")
+        ttk.Label(top, text="Clé IA Google (facultatif, pour remplir automatiquement) :").pack(side="left")
+        ttk.Entry(top, textvariable=self.ai_key, width=30, show="*").pack(side="left", padx=4)
+        ttk.Button(top, text="Décrire via l'IA", command=lambda: self._ai_fill(entries, status)).pack(side="left")
+        ttk.Label(win, text="🔎 ouvre une recherche Google. Écris ou corrige le descriptif, puis « Enregistrer ».",
+                  padding=6).pack(anchor="w")
+        canvas = tk.Canvas(win, highlightthickness=0)
+        sb = ttk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        frame = ttk.Frame(canvas)
+        frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=frame, anchor="nw")
+        canvas.configure(yscrollcommand=sb.set)
+        canvas.pack(side="left", fill="both", expand=True); sb.pack(side="right", fill="y")
+
+        entries = {}
+        for i, dom in enumerate(unknown):
+            row = ttk.Frame(frame); row.grid(row=i, column=0, sticky="we", pady=1)
+            ttk.Label(row, text=dom, width=32).pack(side="left")
+            ttk.Button(row, text="🔎", width=3,
+                       command=lambda d=dom: webbrowser.open("https://www.google.com/search?q=" + d + "+c%27est+quoi")).pack(side="left")
+            v = tk.StringVar()
+            ttk.Entry(row, textvariable=v, width=55).pack(side="left", padx=4)
+            entries[dom] = v
+
+        status = tk.StringVar(value="%d domaine(s) à décrire." % len(unknown))
+        bar = ttk.Frame(win, padding=6); bar.pack(fill="x")
+        ttk.Label(bar, textvariable=status).pack(side="left")
+        ttk.Button(bar, text="Enregistrer", command=lambda: self._save_descriptions(entries, lists_dir, win)).pack(side="right")
+        ttk.Button(bar, text="Fermer", command=win.destroy).pack(side="right", padx=6)
+
+    def _ai_fill(self, entries, status):
+        key = self.ai_key.get().strip()
+        if not key:
+            messagebox.showinfo("IA", "Collez d'abord une clé Google AI Studio (gratuite) dans le champ du haut.")
+            return
+        todo = [d for d, v in entries.items() if not v.get().strip()]
+        status.set("Interrogation de l'IA pour %d domaine(s)..." % len(todo))
+
+        def work():
+            done = 0
+            for dom in todo:
+                try:
+                    desc = core.ai_describe_domain(dom, key)
+                except Exception as e:  # noqa: BLE001
+                    self.queue.put(("status", "IA : %s" % e))
+                    break
+                if desc:
+                    self.queue.put(("aifill", (entries, dom, desc)))
+                done += 1
+                self.queue.put(("status", "IA : %d/%d décrits" % (done, len(todo))))
+            self.queue.put(("status", "IA terminée : vérifiez puis Enregistrer."))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _save_descriptions(self, entries, lists_dir, win):
+        mapping = {d: v.get().strip() for d, v in entries.items() if v.get().strip()}
+        if not mapping:
+            messagebox.showinfo("Enregistrer", "Aucun descriptif saisi.")
+            return
+        n = core.save_descriptions(lists_dir, mapping)
+        if self.analysis:
+            self.analysis.classifier.descriptions.clear()
+            self.analysis.classifier.load_descriptions(os.path.join(lists_dir, "descriptions.txt"))
+        self.status.set("%d descriptif(s) enregistré(s) ; les prochains rapports en tiendront compte." % n)
+        messagebox.showinfo("Enregistré", "%d descriptif(s) ajouté(s) à listes/descriptions.txt.\n"
+                            "Ils enrichiront automatiquement les prochains rapports." % n)
+        win.destroy()
+
     def export_csv(self):
         if not self.report:
             messagebox.showinfo("CSV", "Générez d'abord un rapport.")
@@ -437,10 +528,14 @@ class App(object):
                                       + ("   - %s %s" % (mac, vendor) if mac else ""))
                     self.client_box["values"] = values
                     self.status.set("%d appareil(s) trouvé(s). Choisissez-en un dans la liste puis générez le rapport." % len(values))
+                elif kind == "aifill":
+                    entries, dom, desc = payload
+                    if dom in entries and not entries[dom].get().strip():
+                        entries[dom].set(desc)
                 elif kind == "sites":
                     self.btn_report.state(["!disabled"])
                     analysis, res, path = payload
-                    self.analysis, self.last_html = analysis, path
+                    self.analysis, self.last_html, self.last_sites_res = analysis, path, res
                     self._log("")
                     self._log(core.render_sites_text(res, analysis.filters, limit=200))
                     self.status.set("Sites consultés : %s (+ CSV à côté)" % path)

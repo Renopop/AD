@@ -639,6 +639,65 @@ def find_lists_directory(explicit=None):
     return None
 
 
+def save_descriptions(directory, mapping):
+    """Ajoute des lignes 'domaine = description' à listes/descriptions.txt (sans écraser ni dupliquer).
+    mapping : {domaine: description}. Renvoie le nombre de lignes réellement écrites."""
+    if not directory or not mapping:
+        return 0
+    path = os.path.join(directory, "descriptions.txt")
+    existing = set()
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                l = line.strip()
+                if l and not l.startswith("#") and "=" in l:
+                    existing.add(normalize_host(l.split("=", 1)[0].strip().split("/")[0]))
+    written = 0
+    with open(path, "a", encoding="utf-8") as fh:
+        lines = []
+        for dom, text in mapping.items():
+            dom = normalize_host(str(dom).strip().split("/")[0])
+            text = " ".join(str(text).split()).strip()
+            if dom and text and dom not in existing:
+                lines.append("%s = %s" % (dom, text))
+                existing.add(dom)
+                written += 1
+        if lines:
+            fh.write("\n# Ajouts automatiques (%s)\n" % dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+            fh.write("\n".join(lines) + "\n")
+    return written
+
+
+def ai_describe_domain(domain, api_key, timeout=20):
+    """Demande à l'IA Google (Gemini) une description d'une phrase pour un domaine.
+    Renvoie la phrase, ou lève RuntimeError. Nécessite une clé API Google AI Studio."""
+    if not api_key:
+        raise RuntimeError("Aucune clé IA fournie.")
+    prompt = ("En une seule phrase courte en français, sans ponctuation finale, décris ce qu'est le site "
+              "ou service web dont le domaine est \"%s\". Donne sa nature (par exemple : site de vente, "
+              "banque, réseau social, régie publicitaire, site pornographique, site de rencontres, "
+              "plateforme vidéo). Si tu ne sais pas, réponds exactement : inconnu." % domain)
+    url = ("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key="
+           + urllib.parse.quote(api_key))
+    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("Erreur IA (HTTP %d) : vérifiez la clé Google AI." % e.code)
+    except urllib.error.URLError as e:
+        raise RuntimeError("IA injoignable : %s" % e.reason)
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        raise RuntimeError("Réponse IA vide ou illisible.")
+    text = " ".join(text.split()).strip(" .")
+    if not text or text.lower() == "inconnu":
+        return ""
+    return text[:120]
+
+
 def load_mac_vendors(directory):
     """listes/fabricants_mac.txt : 'XXXXXX Fabricant' (préfixes OUI de l'IEEE, format nmap)."""
     table = {}

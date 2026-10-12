@@ -197,3 +197,99 @@ chatroulette.com = Tchat vidéo avec des inconnus
 monkey.app = Tchat vidéo avec des inconnus
 azarlive.com = Tchat vidéo avec des inconnus
 bazoocam.org = Tchat vidéo avec des inconnus
+
+# ============================================================================
+# PUBLICITÉ, PISTAGE, CONSENTEMENT, MESURE D'AUDIENCE, CDN
+# (domaines techniques chargés par les applis et sites, souvent en arrière-plan)
+# ============================================================================
+
+# --- Régies et réseaux publicitaires ---
+rokt.com = Régie publicitaire (Rokt, e-commerce)
+pubnative.net = Régie publicitaire mobile (PubNative / Verve)
+inmobicdn.net = Régie publicitaire mobile (InMobi)
+inmobi.com = Régie publicitaire mobile (InMobi)
+vervegroupinc.net = Régie publicitaire mobile (Verve Group)
+ogury.io = Régie publicitaire mobile et consentement (Ogury)
+presage.io = Format publicitaire mobile (Presage / Ogury)
+inner-active.mobi = Place de marché publicitaire mobile (Inneractive)
+lijit.com = Place de marché publicitaire (Sovrn / Lijit)
+liftoff-creatives.io = Réseau publicitaire pour applications (Liftoff)
+smartadserver.com = Serveur publicitaire (Equativ / Smart AdServer)
+serving-sys.com = Serveur publicitaire (Sizmek / Amazon)
+2mdn.net = Diffusion de publicités Google (DoubleClick)
+doubleclick.net = Régie publicitaire Google (DoubleClick)
+googlesyndication.com = Publicités Google (AdSense)
+googletagmanager.com = Gestionnaire de balises Google (suivi / pub)
+googletagservices.com = Balises publicitaires Google
+googleadservices.com = Services publicitaires Google
+sojern.com = Publicité ciblée voyage (Sojern)
+taboola.com = Publicité de recommandation d'articles (Taboola)
+outbrain.com = Publicité de recommandation d'articles (Outbrain)
+criteo.com = Reciblage publicitaire (Criteo)
+applovin.com = Réseau publicitaire mobile (AppLovin)
+unity3d.com = Moteur de jeu et régie publicitaire Unity
+trafanalyzer.com = Régie publicitaire / analyse de trafic
+app-ads-services.com = Services publicitaires d'applications (Google/Android)
+
+# --- Vérification et qualité des publicités ---
+doubleverify.com = Vérification de la qualité des publicités (DoubleVerify)
+adsafeprotected.com = Vérification publicitaire (Integral Ad Science)
+geoedge.be = Sécurité et qualité des publicités (GeoEdge)
+adtrafficquality.google = Détection de fraude publicitaire (Google)
+imptracking.com = Suivi d'affichage publicitaire
+safedk.com = Gestion des kits publicitaires des applis (SafeDK / AppLovin)
+
+# --- Mesure d'audience et suivi ---
+app-analytics-services.com = Mesure d'audience d'applications (Google/Android)
+app-analytics-services-att.com = Mesure d'audience d'applications (Google/Android)
+app-measurement.com = Mesure d'audience Google Analytics (applis)
+google-analytics.com = Mesure d'audience Google Analytics
+xiti.com = Mesure d'audience (AT Internet / Piano, France)
+atinternet.com = Mesure d'audience (AT Internet / Piano, France)
+2o7.net = Mesure d'audience Adobe Analytics
+demdex.net = Gestion d'audience publicitaire (Adobe)
+mparticle.com = Plateforme de données clients (mParticle)
+amplitude.com = Analyse du comportement dans les applis (Amplitude)
+mixpanel.com = Analyse du comportement dans les applis (Mixpanel)
+braze.com = Marketing et notifications push (Braze)
+braze.eu = Marketing et notifications push (Braze)
+appsflyer.com = Mesure d'installation d'applis (AppsFlyer)
+adjust.com = Mesure d'installation d'applis (Adjust)
+onesignal.com = Notifications push (OneSignal)
+
+# --- Surveillance technique, sécurité, anti-fraude ---
+instana.io = Surveillance des performances applicatives (Instana / IBM)
+datadoghq.com = Surveillance technique (Datadog)
+sentry.io = Suivi des erreurs logicielles (Sentry)
+crashlytics.com = Rapports de plantage d'applis (Firebase)
+datadome.co = Protection anti-robots et anti-fraude (DataDome)
+incognia.com = Identification et anti-fraude par localisation (Incognia)
+
+# --- Gestion du consentement (bandeaux cookies) ---
+iabtechnologylab.com = Normes publicitaires et consentement (IAB Tech Lab)
+onetrust.io = Gestion du consentement aux cookies (OneTrust)
+onetrust.com = Gestion du consentement aux cookies (OneTrust)
+cookielaw.org = Bandeau de consentement aux cookies (OneTrust)
+trustarc.com = Gestion du consentement et vie privée (TrustArc)
+truste.com = Gestion du consentement (TrustArc / TRUSTe)
+privacy-center.org = Gestion du consentement (Didomi)
+didomi.io = Gestion du consentement aux cookies (Didomi, France)
+smart-tribune.com = Aide en ligne et FAQ de sites (Smart Tribune)
+
+# --- Hébergement et réseaux de diffusion (CDN) ---
+akadns.net = Réseau de diffusion de contenu (Akamai)
+akamai.net = Réseau de diffusion de contenu (Akamai)
+cloudfront.net = Réseau de diffusion de contenu (Amazon CloudFront)
+cloudflare.com = Réseau de diffusion et sécurité (Cloudflare)
+fastly.net = Réseau de diffusion de contenu (Fastly)
+tm-azurefd.net = Réseau de diffusion Microsoft Azure
+website-files.com = Hébergement de sites web (Webflow)
+ampproject.org = Pages mobiles accélérées Google (AMP)
+idms-apple.com = Service d'identité et de compte Apple
+
+# --- Domaines publicitaires / pistage sans description publique ---
+tk0x1.com = Publicité / pistage (régie non identifiée)
+ov1o.com = Publicité / pistage (régie non identifiée)
+ogyfmts.com = Publicité / pistage (régie non identifiée)
+4dvertible.com = Publicité / pistage (régie non identifiée)
+xpln.tech = Publicité / pistage (régie non identifiée)

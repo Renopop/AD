@@ -1516,12 +1516,13 @@ SYSTEM_APPS = {"Apple / iCloud (système)", "Microsoft (système)"}
 
 
 def site_description(classifier, base, app, category):
-    """Descriptif lisible d'un domaine : dictionnaire, puis catégorie/appli/bruit, sinon vide."""
+    """Descriptif lisible d'un domaine : dictionnaire, puis catégorie/appli/bruit, sinon vide.
+    Les sites sensibles (porno, rencontres, tchat) sont préfixés de '!!' pour ressortir."""
     desc = classifier.describe(base)
+    if category:
+        return "!! " + (desc or CATEGORY_LABELS.get(category, category))
     if desc:
         return desc
-    if category:
-        return "Catégorie : " + CATEGORY_LABELS.get(category, category)
     if app in NOISE_APPS:
         return "Publicité / pistage (chargé en arrière-plan par une appli)"
     if app in SYSTEM_APPS:

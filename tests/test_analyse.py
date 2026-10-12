@@ -697,7 +697,8 @@ class TestDescriptions(unittest.TestCase):
         d = {s["domain"]: s["description"] for s in res["sites"]}
         self.assertEqual(d["vinted.com"], "Vente de vêtements d'occasion Vinted")
         self.assertEqual(d["pronote.net"], "Suivi scolaire Pronote (notes, emploi du temps)")
-        self.assertEqual(d["pornhub.com"], "Catégorie : Pornographie")
+        self.assertEqual(d["pornhub.com"], "!! Site pornographique (plateforme de vidéos)")
+        self.assertTrue(d["pornhub.com"].startswith("!!"))
         self.assertIn("Publicité", d["tk0x1.com"])
         self.assertEqual(d["truc-inconnu.test"], "")
         self.assertIn("descriptif", core.render_sites_text(res, a.filters).lower())

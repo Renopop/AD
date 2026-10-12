@@ -124,3 +124,76 @@ ouest-france.fr = Journal Ouest-France
 leparisien.fr = Journal Le Parisien
 franceinfo.fr = Actualités France Info
 bfmtv.com = Chaîne d'info BFM TV
+
+# ============================================================================
+# SITES SENSIBLES : nature du site (factuel, sans contenu explicite).
+# Ces lignes s'affichent dans la colonne descriptif ; la catégorie reste signalée à part.
+# ============================================================================
+
+# --- Pornographie : plateformes de vidéos ("tubes") ---
+pornhub.com = Site pornographique (plateforme de vidéos)
+xvideos.com = Site pornographique (plateforme de vidéos)
+xnxx.com = Site pornographique (plateforme de vidéos)
+xhamster.com = Site pornographique (plateforme de vidéos)
+youporn.com = Site pornographique (plateforme de vidéos)
+redtube.com = Site pornographique (plateforme de vidéos)
+spankbang.com = Site pornographique (plateforme de vidéos)
+eporner.com = Site pornographique (plateforme de vidéos)
+tukif.com = Site pornographique français (plateforme de vidéos)
+porzo.com = Site pornographique (plateforme de vidéos)
+youjizz.com = Site pornographique (plateforme de vidéos)
+tube8.com = Site pornographique (plateforme de vidéos)
+beeg.com = Site pornographique (plateforme de vidéos)
+phncdn.com = Hébergement des vidéos de Pornhub
+xhcdn.com = Hébergement des vidéos de xHamster
+xvideos-cdn.com = Hébergement des vidéos de XVideos
+
+# --- Pornographie : webcams et contenus par abonnement ---
+chaturbate.com = Site pornographique de webcams en direct
+stripchat.com = Site pornographique de webcams en direct
+bongacams.com = Site pornographique de webcams en direct
+livejasmin.com = Site pornographique de webcams en direct
+cam4.com = Site pornographique de webcams en direct
+onlyfans.com = Plateforme de contenus pour adultes par abonnement
+fansly.com = Plateforme de contenus pour adultes par abonnement
+mym.fans = Plateforme de contenus pour adultes par abonnement
+jacquieetmichel.net = Site pornographique français
+dorcel.com = Studio pornographique (Marc Dorcel)
+brazzers.com = Studio pornographique
+nhentai.net = Bande dessinée pornographique (hentai)
+rule34.xxx = Images pornographiques (parodies de personnages)
+
+# --- Rencontres pour adultes ---
+tinder.com = Application de rencontres
+gotinder.com = Application de rencontres Tinder
+badoo.com = Application de rencontres
+bumble.com = Application de rencontres
+hinge.co = Application de rencontres
+grindr.com = Application de rencontres (hommes gay/bi)
+happn.com = Application de rencontres
+lovoo.com = Application de rencontres
+fruitz.co = Application de rencontres
+meetic.fr = Site de rencontres
+adopteunmec.com = Site de rencontres
+cougarlife.com = Site de rencontres (femmes mûres / "cougars")
+gleeden.com = Site de rencontres extraconjugales
+ashleymadison.com = Site de rencontres extraconjugales
+wyylde.com = Site de rencontres libertines
+adultfriendfinder.com = Site de rencontres pour adultes
+seeking.com = Site de rencontres (relations "sugar")
+sugardaddymeet.com = Site de rencontres (relations "sugar")
+
+# --- Rencontres / contact visant les adolescents ---
+yubo.live = Application de "rencontre d'amis" (public adolescent)
+wizzapp.com = Application de "rencontre d'amis" (public adolescent)
+hoop.photo = Application de "rencontre d'amis" (public adolescent)
+litmatch.com = Application de rencontre / tchat (public jeune)
+spotafriend.com = Application de rencontre (adolescents)
+
+# --- Tchat vidéo avec des inconnus ---
+omegle.com = Tchat vidéo avec des inconnus
+ome.tv = Tchat vidéo avec des inconnus
+chatroulette.com = Tchat vidéo avec des inconnus
+monkey.app = Tchat vidéo avec des inconnus
+azarlive.com = Tchat vidéo avec des inconnus
+bazoocam.org = Tchat vidéo avec des inconnus

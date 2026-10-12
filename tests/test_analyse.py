@@ -680,3 +680,25 @@ class TestBruitPubVinted(unittest.TestCase):
             self.assertNotIn(noise, doms, noise)
         # aucun domaine de la rafale n'est classé sensible
         self.assertFalse([s for s in res["sites"] if s["category"]])
+
+
+class TestDescriptions(unittest.TestCase):
+    def test_describe_et_sites(self):
+        c = make_classifier()
+        self.assertEqual(c.describe("www.vinted.com"), "Vente de vêtements d'occasion Vinted")
+        self.assertEqual(c.describe("mabanque.ccf.fr"), "Banque CCF")
+        self.assertEqual(c.describe("domaine-inconnu-xyz.test"), "")
+        base = dt.datetime(2026, 10, 2, 22, 0, tzinfo=PARIS)
+        hosts = ["www.vinted.com", "www.pronote.net", "fr.pornhub.com", "core-b8mf.tk0x1.com", "truc-inconnu.test"]
+        es = [entry(base + dt.timedelta(seconds=i), h, "10.0.0.5") for i, h in enumerate(hosts)]
+        a = core.Analysis(core.Filters(clients=["10.0.0.5"], tz=PARIS), c, keep_all_records=True)
+        a.feed(es)
+        res = core.build_sites(a, with_noise=True)
+        d = {s["domain"]: s["description"] for s in res["sites"]}
+        self.assertEqual(d["vinted.com"], "Vente de vêtements d'occasion Vinted")
+        self.assertEqual(d["pronote.net"], "Suivi scolaire Pronote (notes, emploi du temps)")
+        self.assertEqual(d["pornhub.com"], "Catégorie : Pornographie")
+        self.assertIn("Publicité", d["tk0x1.com"])
+        self.assertEqual(d["truc-inconnu.test"], "")
+        self.assertIn("descriptif", core.render_sites_text(res, a.filters).lower())
+        self.assertIn("Descriptif", core.render_sites_html(res, a.filters))

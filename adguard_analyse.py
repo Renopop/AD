@@ -493,6 +493,7 @@ class Classifier(object):
         self.keywords = {c: [] for c in CATEGORIES}
         self.excluded_domains = set()
         self.excluded_labels = set()
+        self.descriptions = {}     # domaine -> descriptif libre (listes/descriptions.txt)
         self.sources = []
 
     def add_domains(self, category, domains, source, priority=0):
@@ -527,6 +528,9 @@ class Classifier(object):
         excl = os.path.join(directory, "exclusions.txt")
         if os.path.isfile(excl):
             self.add_exclusions(_read_list_lines(excl))
+        desc = os.path.join(directory, "descriptions.txt")
+        if os.path.isfile(desc):
+            self.load_descriptions(desc)
         for cat in CATEGORIES:
             p = os.path.join(directory, cat + ".txt")
             if os.path.isfile(p):
@@ -550,6 +554,26 @@ class Classifier(object):
                 n = self.add_domains(cat, _read_list_lines(p), "externes/" + name, priority=1)
                 self.sources.append("externes/%s (%d domaines)" % (name, n))
         return True
+
+    def load_descriptions(self, path):
+        """descriptions.txt : lignes 'domaine = descriptif'. Les sous-domaines héritent."""
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                line = raw.split("#", 1)[0].strip() if raw.lstrip().startswith("#") else raw.strip()
+                if not line or "=" not in line:
+                    continue
+                dom, text = line.split("=", 1)
+                dom, text = normalize_host(dom.strip().split("/")[0]), text.strip()
+                if dom and text:
+                    self.descriptions[dom] = text
+        return len(self.descriptions)
+
+    def describe(self, host):
+        """Descriptif libre d'un domaine (ou de son suffixe le plus précis), sinon ''."""
+        for suffix in host_suffixes(host):
+            if suffix in self.descriptions:
+                return self.descriptions[suffix]
+        return ""
 
     def is_excluded(self, host):
         return host_matches_any(host, self.excluded_domains)
@@ -1491,6 +1515,22 @@ def render_app_detail_html(det):
 SYSTEM_APPS = {"Apple / iCloud (système)", "Microsoft (système)"}
 
 
+def site_description(classifier, base, app, category):
+    """Descriptif lisible d'un domaine : dictionnaire, puis catégorie/appli/bruit, sinon vide."""
+    desc = classifier.describe(base)
+    if desc:
+        return desc
+    if category:
+        return "Catégorie : " + CATEGORY_LABELS.get(category, category)
+    if app in NOISE_APPS:
+        return "Publicité / pistage (chargé en arrière-plan par une appli)"
+    if app in SYSTEM_APPS:
+        return "Domaine technique du système d'exploitation"
+    if app:
+        return "Application : " + app
+    return ""
+
+
 def build_sites(analysis, gap_minutes=30, with_noise=False):
     """Tous les sites consultés (un appareil, ou tous) : par domaine, par appareil, et journal chronologique."""
     recs = sorted(analysis.all_records or [], key=lambda r: r[0])
@@ -1529,6 +1569,8 @@ def build_sites(analysis, gap_minutes=30, with_noise=False):
             journal.append((t, base, host, st["category"], app, ip, name))
         last_seen[key] = t
         st["last"] = t
+    for st in sites.values():
+        st["description"] = site_description(analysis.classifier, st["domain"], st["app"], st["category"])
     ordered = sorted(sites.values(), key=lambda x: (-x["count"], x["domain"]))
     per_day = collections.defaultdict(set)
     for row in journal:
@@ -1576,14 +1618,13 @@ def render_sites_text(res, filters, limit=0):
     out.append("")
     out.append("TOUS LES DOMAINES (du plus demandé au moins demandé)")
     out.append("-" * 78)
-    out.append("  %-40s %6s %5s %6s  %-12s %-12s %-22s %s" % ("domaine", "req.", "jours", "visites", "première", "dernière", "catégorie / appli",
-                                                             "appareils" if res["multi"] else ""))
+    out.append("  %-34s %5s %6s  %-12s %-40s %s" % ("domaine", "req.", "visites", "dernière", "descriptif", "appareils" if res["multi"] else ""))
     rows = res["sites"][:limit] if limit else res["sites"]
     for st in rows:
-        tag = ("!! " + CATEGORY_LABELS.get(st["category"], st["category"])) if st["category"] else (st["app"] or "")
-        devs = ", ".join("%s(%d)" % (_dev_label(res, ip), n) for ip, n in st["devices"].most_common(4)) if res["multi"] else ""
-        out.append("  %-40s %6d %5d %6d  %-12s %-12s %-22s %s" % (st["domain"][:40], st["count"], len(st["days"]), st["visits"],
-                                                               st["first"].strftime("%d/%m %H:%M"), st["last"].strftime("%d/%m %H:%M"), tag[:22], devs))
+        desc = st.get("description") or (("!! " + CATEGORY_LABELS.get(st["category"], st["category"])) if st["category"] else "")
+        devs = ", ".join("%s(%d)" % (_dev_label(res, ip), n) for ip, n in st["devices"].most_common(3)) if res["multi"] else ""
+        out.append("  %-34s %5d %6d  %-12s %-40s %s" % (st["domain"][:34], st["count"], st["visits"],
+                                                        st["last"].strftime("%d/%m %H:%M"), desc[:40], devs))
     if limit and len(res["sites"]) > limit:
         out.append("  ... (%d domaines au total, voir le HTML ou le CSV)" % len(res["sites"]))
     if res["multi"]:
@@ -1630,14 +1671,15 @@ def render_sites_html(res, filters):
                      % (_esc(d["ip"]), _esc(d["name"] if d["name"] != d["ip"] else ""), d["count"], len(d["domains"]),
                         _esc(fmt_dt(d["first"])), _esc(fmt_dt(d["last"]))))
         h.append("</table>")
-    h.append("<h2>Tous les domaines</h2><table><tr><th>Domaine</th><th class='num'>Requêtes</th><th class='num'>Jours</th>"
+    h.append("<h2>Tous les domaines</h2><table><tr><th>Domaine</th><th>Descriptif</th><th class='num'>Requêtes</th><th class='num'>Jours</th>"
              "<th class='num'>Visites</th><th>Première</th><th>Dernière</th><th>Heures typiques</th><th>Catégorie / appli</th>"
              + ("<th>Appareils</th>" if res["multi"] else "") + "<th>Sous-domaines</th></tr>")
     for st in res["sites"]:
         tag = _cat_tag(st["category"]) if st["category"] else _esc(st["app"] or "")
         devs = ("<td><small>%s</small></td>" % _esc(", ".join("%s (%d)" % (_dev_label(res, ip), n) for ip, n in st["devices"].most_common()))) if res["multi"] else ""
-        h.append("<tr><td><b>%s</b></td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s<td><small>%s</small></td></tr>"
-                 % (_esc(st["domain"]), st["count"], len(st["days"]), st["visits"], _esc(fmt_dt(st["first"])), _esc(fmt_dt(st["last"])),
+        h.append("<tr><td><b>%s</b></td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s<td><small>%s</small></td></tr>"
+                 % (_esc(st["domain"]), _esc(st.get("description") or ""), st["count"], len(st["days"]), st["visits"],
+                    _esc(fmt_dt(st["first"])), _esc(fmt_dt(st["last"])),
                     _esc(", ".join(typical_slots(st["hours"])) or "-"), tag, devs,
                     _esc(", ".join("%s (%d)" % (k, v) for k, v in st["hosts"].most_common(3)))))
     h.append("</table>")
@@ -1672,10 +1714,11 @@ def render_sites_html(res, filters):
 def write_sites_csv(res, path):
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
-        w.writerow(["date", "heure", "jour", "appareil_ip", "appareil_nom", "domaine", "sous_domaine", "categorie", "application"])
+        w.writerow(["date", "heure", "jour", "appareil_ip", "appareil_nom", "domaine", "descriptif", "sous_domaine", "categorie", "application"])
+        desc_by_dom = {st["domain"]: st.get("description", "") for st in res["sites"]}
         for t, base, host, cat, app, ip, name in res["journal"]:
             w.writerow([t.strftime("%Y-%m-%d"), t.strftime("%H:%M:%S"), WEEKDAYS_FR[t.weekday()], ip, name if name != ip else "",
-                        base, host, CATEGORY_LABELS.get(cat, cat) if cat else "", app or ""])
+                        base, desc_by_dom.get(base, ""), host, CATEGORY_LABELS.get(cat, cat) if cat else "", app or ""])
 
 
 def render_activity_text(act, filters):

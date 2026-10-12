@@ -1,0 +1,126 @@
+# Descriptif des sites, affiché dans l'analyse des sites visités.
+# Format :  domaine = description courte      (les sous-domaines héritent de la description)
+# Modifiable librement : ajoute une ligne pour tout domaine que tu veux décrire.
+# Pour les sites pornographiques, de rencontres ou de tchat, la catégorie suffit : inutile d'en remettre ici.
+
+# --- Moteurs de recherche ---
+google.com = Moteur de recherche Google
+google.fr = Moteur de recherche Google (France)
+bing.com = Moteur de recherche Bing (Microsoft)
+duckduckgo.com = Moteur de recherche respectueux de la vie privée
+qwant.com = Moteur de recherche français
+ecosia.org = Moteur de recherche écologique
+yahoo.com = Portail et moteur de recherche Yahoo
+
+# --- Réseaux sociaux et messageries ---
+facebook.com = Réseau social Facebook
+instagram.com = Réseau social de photos et vidéos (Meta)
+whatsapp.com = Messagerie WhatsApp (Meta)
+whatsapp.net = Serveurs de la messagerie WhatsApp
+messenger.com = Messagerie Messenger (Meta)
+snapchat.com = Messagerie éphémère Snapchat
+tiktok.com = Réseau social de vidéos courtes TikTok
+twitter.com = Réseau social X (ex-Twitter)
+x.com = Réseau social X (ex-Twitter)
+discord.com = Messagerie et salons vocaux Discord (jeux, communautés)
+telegram.org = Messagerie Telegram
+reddit.com = Forums et communautés Reddit
+pinterest.fr = Réseau d'images et d'idées Pinterest
+pinterest.com = Réseau d'images et d'idées Pinterest
+linkedin.com = Réseau social professionnel LinkedIn
+bere.al = Réseau social BeReal
+threads.net = Réseau social Threads (Meta)
+
+# --- Vidéo, streaming, musique ---
+youtube.com = Plateforme de vidéos YouTube
+googlevideo.com = Diffusion des vidéos YouTube
+twitch.tv = Streaming de jeux vidéo en direct Twitch
+netflix.com = Streaming de films et séries Netflix
+disneyplus.com = Streaming Disney+
+primevideo.com = Streaming Amazon Prime Video
+spotify.com = Streaming de musique Spotify
+deezer.com = Streaming de musique Deezer
+soundcloud.com = Plateforme de musique SoundCloud
+dailymotion.com = Plateforme de vidéos Dailymotion
+molotov.tv = Télévision en direct Molotov
+
+# --- Jeux vidéo ---
+roblox.com = Plateforme de jeux Roblox (public jeune)
+minecraft.net = Jeu Minecraft
+epicgames.com = Fortnite et magasin de jeux Epic Games
+fortnite.com = Jeu Fortnite
+steampowered.com = Magasin de jeux PC Steam
+supercell.com = Jeux mobiles Supercell (Clash of Clans, Brawl Stars)
+ea.com = Jeux Electronic Arts
+playstation.com = Services PlayStation
+xbox.com = Services Xbox
+
+# --- Achats ---
+amazon.fr = Boutique en ligne Amazon
+amazon.com = Boutique en ligne Amazon
+vinted.com = Vente de vêtements d'occasion Vinted
+vinted.net = Images et données de l'appli Vinted
+vintedapp.com = Application Vinted
+leboncoin.fr = Petites annonces Le Bon Coin
+shein.com = Mode à bas prix Shein
+temu.com = Vente en ligne à bas prix Temu
+aliexpress.com = Vente en ligne AliExpress
+cdiscount.com = Boutique en ligne Cdiscount
+fnac.com = Boutique Fnac (culture, high-tech)
+zalando.fr = Vêtements et chaussures Zalando
+
+# --- Banques et administrations françaises ---
+ccf.fr = Banque CCF
+arkea.com = Groupe bancaire Arkéa (héberge CCF, Fortuneo...)
+creditmutuel.fr = Banque Crédit Mutuel
+labanquepostale.fr = La Banque Postale
+bnpparibas.net = Banque BNP Paribas
+caisse-epargne.fr = Banque Caisse d'Épargne
+credit-agricole.fr = Banque Crédit Agricole
+societegenerale.fr = Banque Société Générale
+boursorama.com = Banque en ligne BoursoBank
+fortuneo.fr = Banque en ligne Fortuneo
+paypal.com = Paiement en ligne PayPal
+impots.gouv.fr = Impôts (administration fiscale)
+ameli.fr = Assurance maladie (Sécurité sociale)
+service-public.fr = Services publics français
+laposte.fr = La Poste
+caf.fr = Allocations familiales (CAF)
+
+# --- Scolaire et éducation ---
+pronote.net = Suivi scolaire Pronote (notes, emploi du temps)
+index-education.net = Pronote / Index Éducation
+ecoledirecte.com = Suivi scolaire École Directe
+ac-rennes.fr = Académie de Rennes (Éducation nationale)
+education.gouv.fr = Ministère de l'Éducation nationale
+wikipedia.org = Encyclopédie Wikipédia
+duolingo.com = Apprentissage des langues Duolingo
+openai.com = ChatGPT (IA conversationnelle OpenAI)
+chatgpt.com = ChatGPT (IA conversationnelle OpenAI)
+
+# --- Email, cloud, outils ---
+gmail.com = Messagerie Gmail
+outlook.com = Messagerie Outlook (Microsoft)
+icloud.com = Services Apple iCloud (sauvegarde, mails, photos)
+apple.com = Site et services Apple
+microsoft.com = Site et services Microsoft
+google.com = Compte et services Google
+dropbox.com = Stockage de fichiers Dropbox
+googleusercontent.com = Contenus hébergés par Google (images, fichiers)
+gstatic.com = Fichiers techniques de Google
+googleapis.com = Services techniques de Google
+
+# --- Voyage, tourisme, local ---
+booking.com = Réservation d'hôtels Booking
+airbnb.fr = Location de logements Airbnb
+sncf-connect.com = Billets de train SNCF
+google.com/maps = Cartes Google Maps
+mappy.com = Cartes et itinéraires Mappy
+
+# --- Actualités françaises ---
+lemonde.fr = Journal Le Monde
+lefigaro.fr = Journal Le Figaro
+ouest-france.fr = Journal Ouest-France
+leparisien.fr = Journal Le Parisien
+franceinfo.fr = Actualités France Info
+bfmtv.com = Chaîne d'info BFM TV

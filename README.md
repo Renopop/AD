@@ -162,7 +162,11 @@ l'interface, champ appareil vide) : **tous les domaines** demandés,
 du plus fréquent au moins fréquent, avec requêtes, jours, nombre de visites, première et dernière fois,
 heures typiques, catégorie sensible ou application reconnue, sous-domaines ; les **domaines par jour** ; et un
 **journal de navigation** chronologique (une ligne par nouvelle visite d'un domaine, après 30 min sans
-requête vers ce domaine), exporté aussi en CSV. Avec plusieurs appareils, le tableau indique quel appareil a
+requête vers ce domaine), exporté aussi en CSV. Chaque domaine porte un **descriptif** (« Banque CCF »,
+« Suivi scolaire Pronote », « Plateforme de vidéos YouTube »...) issu d'un dictionnaire modifiable
+(`listes/descriptions.txt`) ; à défaut, l'outil indique la catégorie, l'application ou « Publicité / pistage ».
+L'outil ne visite pas les sites : pour un domaine inconnu, le descriptif est vide et tu peux l'ajouter toi-même
+dans `listes/descriptions.txt` (une ligne `domaine = description`). Avec plusieurs appareils, le tableau indique quel appareil a
 demandé chaque domaine, une section détaille les domaines de chaque appareil, et le journal et le CSV portent
 l'appareil sur chaque ligne. Le bruit publicitaire, technique et système est exclu par
 défaut (`--avec-bruit` pour tout voir). Un domaine inconnu qui revient souvent se repère ici, et

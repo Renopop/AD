@@ -703,3 +703,23 @@ class TestDescriptions(unittest.TestCase):
         self.assertEqual(d["truc-inconnu.test"], "")
         self.assertIn("descriptif", core.render_sites_text(res, a.filters).lower())
         self.assertIn("Descriptif", core.render_sites_html(res, a.filters))
+
+
+class TestLienVerification(unittest.TestCase):
+    def test_lien_google(self):
+        link = core._verify_link("trafanalyzer.com")
+        self.assertIn("google.com/search", link)
+        self.assertIn("trafanalyzer.com", link)
+        self.assertIn('target="_blank"', link)
+
+    def test_present_dans_rapports(self):
+        c = make_classifier()
+        base = dt.datetime(2026, 10, 2, 22, 0, tzinfo=PARIS)
+        es = [entry(base + dt.timedelta(minutes=d), "fr.pornhub.com", "192.168.1.42", 5, True) for d in range(3)]
+        es += [entry(base + dt.timedelta(minutes=10 + i), "www.inconnu-xyz.test", "192.168.1.42") for i in range(2)]
+        a = core.Analysis(core.Filters(clients=["192.168.1.42"], tz=PARIS), c, keep_all_records=True)
+        a.feed(es)
+        rep = core.build_report(a, threshold_days=2)
+        self.assertIn('class="chk"', core.render_html(rep))
+        res = core.build_sites(a, with_noise=True)
+        self.assertIn('class="chk"', core.render_sites_html(res, a.filters))

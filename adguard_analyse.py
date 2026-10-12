@@ -1678,8 +1678,8 @@ def render_sites_html(res, filters):
     for st in res["sites"]:
         tag = _cat_tag(st["category"]) if st["category"] else _esc(st["app"] or "")
         devs = ("<td><small>%s</small></td>" % _esc(", ".join("%s (%d)" % (_dev_label(res, ip), n) for ip, n in st["devices"].most_common()))) if res["multi"] else ""
-        h.append("<tr><td><b>%s</b></td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s<td><small>%s</small></td></tr>"
-                 % (_esc(st["domain"]), _esc(st.get("description") or ""), st["count"], len(st["days"]), st["visits"],
+        h.append("<tr><td><b>%s</b>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s<td><small>%s</small></td></tr>"
+                 % (_esc(st["domain"]), _verify_link(st["domain"]), _esc(st.get("description") or ""), st["count"], len(st["days"]), st["visits"],
                     _esc(fmt_dt(st["first"])), _esc(fmt_dt(st["last"])),
                     _esc(", ".join(typical_slots(st["hours"])) or "-"), tag, devs,
                     _esc(", ".join("%s (%d)" % (k, v) for k, v in st["hosts"].most_common(3)))))
@@ -1706,8 +1706,8 @@ def render_sites_html(res, filters):
     for t, base, host, cat, app, ip, name in res["journal"]:
         tag = _cat_tag(cat) if cat else _esc(app or "")
         dev = ("<td>%s</td>" % _esc(_dev_label(res, ip))) if res["multi"] else ""
-        h.append("<tr><td>%s</td><td>%s</td>%s<td><b>%s</b></td><td><small>%s</small></td><td>%s</td></tr>"
-                 % (WEEKDAYS_FR_LONG[t.weekday()], _esc(fmt_dt(t)), dev, _esc(base), _esc(host), tag))
+        h.append("<tr><td>%s</td><td>%s</td>%s<td><b>%s</b>%s</td><td><small>%s</small></td><td>%s</td></tr>"
+                 % (WEEKDAYS_FR_LONG[t.weekday()], _esc(fmt_dt(t)), dev, _esc(base), _verify_link(base), _esc(host), tag))
     h.append("</table></div></body></html>")
     return "\n".join(h)
 
@@ -2129,6 +2129,7 @@ th{background:#eef1f5} tr:nth-child(even) td{background:#fafbfc}
 .kpi{display:inline-block;min-width:150px;margin:6px 14px 6px 0} .kpi b{display:block;font-size:22px}
 .bar{background:#3b7ddd;height:12px;display:inline-block;vertical-align:middle}
 small{color:#666} details summary{cursor:pointer;font-weight:bold;margin:10px 0}
+.chk{text-decoration:none;font-size:14px;margin-left:5px;opacity:.6} .chk:hover{opacity:1}
 """
 
 
@@ -2138,6 +2139,14 @@ def _esc(x):
 
 def _cat_tag(cat):
     return '<span class="tag %s">%s</span>' % (_esc(cat), _esc(CATEGORY_LABELS.get(cat, cat)))
+
+
+def _verify_link(domain, label="&#128269;"):
+    """Lien ouvrant une recherche Google (avec résumé IA) sur le domaine, dans un nouvel onglet.
+    On recherche le domaine au lieu d'ouvrir le site : sans risque pour un site sensible."""
+    q = urllib.parse.quote("%s c'est quoi quel site" % domain)
+    return ('<a href="https://www.google.com/search?q=%s" target="_blank" rel="noopener noreferrer" '
+            'title="Vérifier sur Google ce qu\'est ce site" class="chk">%s</a>' % (q, label))
 
 
 def render_html(rep, detail=True):
@@ -2184,9 +2193,9 @@ def render_html(rep, detail=True):
         h.append("<table><tr><th>Domaine</th><th>Appareil</th><th>Catégorie</th><th class='num'>Jours</th><th class='num'>Requêtes</th>"
                  "<th class='num'>Bloquées</th><th>Créneaux typiques</th><th>Jours de la semaine</th><th>Première</th><th>Dernière</th></tr>")
         for s in rep["recurrent"][:rep["top"]]:
-            h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d / %d</td><td class='num'>%d</td><td class='num'>%d</td>"
+            h.append("<tr><td>%s%s</td><td>%s</td><td>%s</td><td class='num'>%d / %d</td><td class='num'>%d</td><td class='num'>%d</td>"
                      "<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
-                     % (_esc(s["domain"]), _esc(device_label(s["client"], s.get("client_name"))), _cat_tag(s["category"]),
+                     % (_esc(s["domain"]), _verify_link(s["domain"]), _esc(device_label(s["client"], s.get("client_name"))), _cat_tag(s["category"]),
                         len(s["days"]), rep["n_days"], s["count"], s["blocked"],
                         _esc(", ".join(typical_slots(s["hours"])) or "-"),
                         _esc(", ".join("%s (%d)" % (WEEKDAYS_FR[d], n) for d, n in sorted(s["weekdays"].items()))),
@@ -2227,9 +2236,9 @@ def render_html(rep, detail=True):
              "<th class='num'>Bloquées</th><th>Détection</th><th>Sous-domaines vus</th><th>Dernière fois</th></tr>")
     for s in sorted(rep["domain_stats"], key=lambda x: -x["count"])[:rep["top"] * 2]:
         hosts = ", ".join("%s (%d)" % (hh, n) for hh, n in s["hosts"].most_common(3))
-        h.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td>"
+        h.append("<tr><td>%s%s</td><td>%s</td><td>%s</td><td class='num'>%d</td><td class='num'>%d</td><td class='num'>%d</td>"
                  "<td><small>%s : %s</small></td><td><small>%s</small></td><td>%s</td></tr>"
-                 % (_esc(s["domain"]), _esc(device_label(s["client"], s.get("client_name"))), _cat_tag(s["category"]),
+                 % (_esc(s["domain"]), _verify_link(s["domain"]), _esc(device_label(s["client"], s.get("client_name"))), _cat_tag(s["category"]),
                     len(s["days"]), s["count"], s["blocked"],
                     _esc(s["source"]), _esc(s["detail"]), _esc(hosts), _esc(fmt_dt(s["last"]))))
     h.append("</table>")

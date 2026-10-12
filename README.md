@@ -166,7 +166,7 @@ requête vers ce domaine), exporté aussi en CSV. Chaque domaine porte un **desc
 « Suivi scolaire Pronote », « Plateforme de vidéos YouTube »...) issu d'un dictionnaire modifiable
 (`listes/descriptions.txt`) ; à défaut, l'outil indique la catégorie, l'application ou « Publicité / pistage ».
 L'outil ne visite pas les sites : pour un domaine inconnu, le descriptif est vide et tu peux l'ajouter toi-même
-dans `listes/descriptions.txt` (une ligne `domaine = description`). Le dictionnaire fourni couvre déjà plus de 200 sites : grand public, banques, scolaire, et la plupart des régies publicitaires, traceurs, outils de consentement et CDN qui se chargent en arrière-plan. Avec plusieurs appareils, le tableau indique quel appareil a
+dans `listes/descriptions.txt` (une ligne `domaine = description`). Dans le rapport HTML, un petit lien **🔎 à côté de chaque domaine** ouvre une recherche Google (avec résumé IA) pour vérifier ce qu'est le site, sans l'ouvrir lui-même. Le dictionnaire fourni couvre déjà plus de 200 sites : grand public, banques, scolaire, et la plupart des régies publicitaires, traceurs, outils de consentement et CDN qui se chargent en arrière-plan. Avec plusieurs appareils, le tableau indique quel appareil a
 demandé chaque domaine, une section détaille les domaines de chaque appareil, et le journal et le CSV portent
 l'appareil sur chaque ligne. Le bruit publicitaire, technique et système est exclu par
 défaut (`--avec-bruit` pour tout voir). Un domaine inconnu qui revient souvent se repère ici, et
